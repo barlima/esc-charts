@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "sbp_4e5624350885a7a9a7ecb62df77a3c80f5533778"
+      ]
+    },
+    "perplexity-mcp": {
+      "env": {
+        "PERPLEXITY_API_KEY": "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",
+        "PERPLEXITY_MODEL": "sonar"
+      },
+      "command": "uvx",
+      "args": ["perplexity-mcp"]
+    }
+  }
+}

@@ -1,22 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Eurovision Song Contest Charts
+
+App for exploring voting and performance statistics from Eurovision Song Contests throughout the years.
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository
+2. Install dependencies
+   ```bash
+   npm install
+   ```
+3. Set up your Supabase environment variables
+   
+   Create a `.env.local` file in the root of the project with the following:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+   NEXT_PUBLIC_SUPABASE_PROJECT_ID=your-project-id
+   ```
+   
+   Replace the values with your actual Supabase project URL, anon key, and project ID.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+4. Start the development server
+   ```bash
+   npm run dev
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The app uses:
+- Next.js 15
+- Radix UI for components
+- Supabase for database and authentication
+- TypeScript for type safety
+
+## Database Structure
+
+The database is structured with the following tables:
+- `contests` - Information about each Eurovision Song Contest
+  - `id` - Unique identifier
+  - `year` - Year of the contest
+  - `city` - Host city
+  - `country` - Host country
+
+## Generating TypeScript Types from Supabase
+
+The project includes a tool to automatically generate TypeScript types from your Supabase database schema:
+
+1. Make sure your environment variables are set up in `.env.local`:
+   ```
+   NEXT_PUBLIC_SUPABASE_PROJECT_ID=your-project-id
+   ```
+   You can get your project ID from the URL in the Supabase dashboard: `https://app.supabase.com/project/[your-project-id]`
+
+2. Generate an access token:
+   - Go to https://app.supabase.com/account/tokens
+   - Generate a new token with an appropriate name
+   - Copy the token value
+
+3. Run the script to generate types:
+   ```bash
+   SUPABASE_ACCESS_TOKEN=your-access-token npm run update-types
+   ```
+   Replace `your-access-token` with the token you generated.
+
+This will generate TypeScript types based on your current database schema and update the `src/types/supabase.ts` file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
