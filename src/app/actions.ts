@@ -1,14 +1,36 @@
-'use server';
+"use server";
 
 import { supabase } from "@/utils/supabase";
 import { Tables } from "@/types/supabase";
 
 export type Contest = Tables<"contests">;
-export type Song = Tables<"songs"> & { country_name?: string; country_slug?: string };
+export type Song = Tables<"songs"> & {
+  country_name?: string;
+  country_slug?: string;
+};
 export type Vote = Tables<"votes">;
 export type Country = Tables<"countries">;
 
-export async function getContests(): Promise<{ 
+// Define types for the RPC function responses
+type SongPointsResponse = {
+  jury_points: number;
+  televote_points: number;
+  total_points: number;
+};
+
+type SongWithPointsResponse = {
+  id: number;
+  country_name: string;
+  country_id: number;
+  artist: string;
+  title: string;
+  venue_type: string;
+  jury_points: number;
+  televote_points: number;
+  total_points: number;
+};
+
+export async function getContests(): Promise<{
   contests: Contest[];
   errorMessage: string | null;
 }> {
@@ -17,19 +39,20 @@ export async function getContests(): Promise<{
 
   try {
     const { data, error } = await supabase
-      .from('contests')
-      .select('*')
-      .order('year', { ascending: false });
-    
+      .from("contests")
+      .select("*")
+      .order("year", { ascending: false });
+
     if (error) {
-      console.error('Supabase error:', error);
+      console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
       contests = data;
     }
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
-    errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
   }
 
   return { contests, errorMessage };
@@ -44,20 +67,21 @@ export async function getContestByYear(year: number): Promise<{
 
   try {
     const { data, error } = await supabase
-      .from('contests')
-      .select('*')
-      .eq('year', year)
+      .from("contests")
+      .select("*")
+      .eq("year", year)
       .single();
-    
+
     if (error) {
-      console.error('Supabase error:', error);
+      console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
       contest = data;
     }
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
-    errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
   }
 
   return { contest, errorMessage };
@@ -72,26 +96,29 @@ export async function getSongsByContest(contestId: number): Promise<{
 
   try {
     const { data, error } = await supabase
-      .from('songs')
-      .select(`
+      .from("songs")
+      .select(
+        `
         *,
         countries:country_id (name)
-      `)
-      .eq('contest_id', contestId)
-      .order('venue_type');
-    
+      `
+      )
+      .eq("contest_id", contestId)
+      .order("venue_type");
+
     if (error) {
-      console.error('Supabase error:', error);
+      console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
-      songs = data.map(song => ({
+      songs = data.map((song) => ({
         ...song,
-        country_name: song.countries?.name || 'Unknown'
+        country_name: song.countries?.name || "Unknown",
       }));
     }
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
-    errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
   }
 
   return { songs, errorMessage };
@@ -109,44 +136,34 @@ export async function getVotesBySong(songId: number): Promise<{
   let errorMessage: string | null = null;
 
   try {
-    const { data, error } = await supabase
-      .from('votes')
-      .select('jury_or_televote, points')
-      .eq('song_id', songId);
-    
+    const { data, error } = await supabase.rpc("get_song_points", {
+      song_id_param: songId,
+    });
+
     if (error) {
-      console.error('Supabase error:', error);
+      console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
-      // Calculate points by type
-      juryPoints = data
-        .filter(vote => vote.jury_or_televote === 'jury')
-        .reduce((sum, vote) => sum + vote.points, 0) || null;
-      
-      televotePoints = data
-        .filter(vote => vote.jury_or_televote === 'televote')
-        .reduce((sum, vote) => sum + vote.points, 0) || null;
-      
-      const combinedPoints = data
-        .filter(vote => vote.jury_or_televote === 'combined')
-        .reduce((sum, vote) => sum + vote.points, 0) || 0;
-      
-      // Calculate total - use combined if jury and televote don't exist
-      if (juryPoints !== null || televotePoints !== null) {
-        totalPoints = (juryPoints || 0) + (televotePoints || 0) + combinedPoints;
-      } else if (combinedPoints > 0) {
-        totalPoints = combinedPoints;
+      const points = data as unknown as SongPointsResponse[];
+      if (points && points.length > 0) {
+        juryPoints = points[0].jury_points || null;
+        televotePoints = points[0].televote_points || null;
+        totalPoints = points[0].total_points || null;
       }
     }
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
-    errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
   }
 
   return { juryPoints, televotePoints, totalPoints, errorMessage };
 }
 
-export async function getSongByCountrySlug(contestId: number, countrySlug: string): Promise<{
+export async function getSongByCountrySlug(
+  contestId: number,
+  countrySlug: string
+): Promise<{
   song: (Song & { country_id: number }) | null;
   errorMessage: string | null;
 }> {
@@ -155,45 +172,99 @@ export async function getSongByCountrySlug(contestId: number, countrySlug: strin
 
   try {
     const { data, error } = await supabase
-      .from('songs')
-      .select(`
+      .from("songs")
+      .select(
+        `
         *,
         countries:country_id (id, name, slug)
-      `)
-      .eq('contest_id', contestId)
-      .eq('countries.slug', countrySlug)
+      `
+      )
+      .eq("contest_id", contestId)
+      .eq("countries.slug", countrySlug)
       .single();
-    
+
     if (error) {
-      console.error('Supabase error:', error);
+      console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
       // Type assertion to help TypeScript understand the structure
-      type SongWithCountry = Song & { 
-        countries: { 
-          id: number; 
-          name: string; 
-          slug: string 
-        } | null
+      type SongWithCountry = Song & {
+        countries: {
+          id: number;
+          name: string;
+          slug: string;
+        } | null;
       };
       const typedData = data as SongWithCountry;
-      
+
       song = {
         ...typedData,
-        country_name: typedData.countries?.name || 'Unknown',
-        country_slug: typedData.countries?.slug || '',
-        country_id: typedData.countries?.id || typedData.country_id
+        country_name: typedData.countries?.name || "Unknown",
+        country_slug: typedData.countries?.slug || "",
+        country_id: typedData.countries?.id || typedData.country_id,
       };
     }
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
-    errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
   }
 
   return { song, errorMessage };
 }
 
-export async function getSongPosition(songId: number, venueType: "final" | "semifinal1" | "semifinal2"): Promise<{
+export async function getSongsByContestWithPoints(contestId: number): Promise<{
+  songs: Array<{
+    id: number;
+    country_name: string;
+    country_id: number;
+    artist: string;
+    title: string;
+    venue_type: "final" | "semifinal1" | "semifinal2";
+    juryPoints: number | null;
+    televotePoints: number | null;
+    totalPoints: number | null;
+  }>;
+  errorMessage: string | null;
+}> {
+  let songs: any[] = [];
+  let errorMessage: string | null = null;
+
+  try {
+    const { data, error } = await supabase.rpc("get_songs_with_points", {
+      contest_id_param: contestId,
+    });
+
+    if (error) {
+      console.error("Supabase error:", error);
+      errorMessage = error.message;
+    } else if (data) {
+      // Cast each row and explicitly handle string columns to ensure type compatibility
+      songs = (data as any[]).map((song) => ({
+        id: song.id,
+        country_name: String(song.country_name || "Unknown"),
+        country_id: song.country_id,
+        artist: String(song.artist || ""),
+        title: String(song.title || ""),
+        venue_type: song.venue_type as "final" | "semifinal1" | "semifinal2",
+        juryPoints: song.jury_points || null,
+        televotePoints: song.televote_points || null,
+        totalPoints: song.total_points || null,
+      }));
+    }
+  } catch (err) {
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
+  }
+
+  return { songs, errorMessage };
+}
+
+export async function getSongPosition(
+  songId: number,
+  venueType: "final" | "semifinal1" | "semifinal2"
+): Promise<{
   position: number | null;
   errorMessage: string | null;
 }> {
@@ -201,23 +272,22 @@ export async function getSongPosition(songId: number, venueType: "final" | "semi
   let errorMessage: string | null = null;
 
   try {
-    const { data, error } = await supabase
-      .from('songs')
-      .select('id, points')
-      .eq('venue_type', venueType)
-      .order('points', { ascending: false });
-    
+    const { data, error } = await supabase.rpc("get_song_position", {
+      song_id_param: songId,
+      venue_type_param: venueType,
+    });
+
     if (error) {
-      console.error('Supabase error:', error);
+      console.error("Supabase error:", error);
       errorMessage = error.message;
-    } else if (data) {
-      const songIndex = data.findIndex(song => song.id === songId);
-      position = songIndex !== -1 ? songIndex + 1 : null;
+    } else {
+      position = (data as number) || null;
     }
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
-    errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
   }
 
   return { position, errorMessage };
-} 
+}

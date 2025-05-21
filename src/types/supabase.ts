@@ -272,7 +272,32 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      get_song_points: {
+        Args: { song_id_param: number }
+        Returns: {
+          jury_points: number
+          televote_points: number
+          total_points: number
+        }[]
+      }
+      get_song_position: {
+        Args: { song_id_param: number; venue_type_param: string }
+        Returns: number
+      }
+      get_songs_with_points: {
+        Args: { contest_id_param: number }
+        Returns: {
+          id: number
+          country_name: string
+          country_id: number
+          artist: string
+          title: string
+          venue_type: string
+          jury_points: number
+          televote_points: number
+          total_points: number
+        }[]
+      }
     }
     Enums: {
       venue_type: "final" | "semifinal1" | "semifinal2"

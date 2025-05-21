@@ -1,9 +1,5 @@
 import { Container, Heading, Text, Box, Flex, Card } from "@radix-ui/themes";
-import {
-  getContestByYear,
-  getSongsByContest,
-  getVotesBySong,
-} from "@/app/actions";
+import { getContestByYear, getSongsByContestWithPoints } from "@/app/actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -54,31 +50,9 @@ export default async function ContestPage({
     notFound();
   }
 
-  // Fetch songs data
-  const { songs, errorMessage: songsError } = await getSongsByContest(
-    contest.id
-  );
-
-  // Fetch votes data for each song and organize by venue type
-  const songsWithPoints: SongWithPoints[] = [];
-
-  for (const song of songs) {
-    const { juryPoints, televotePoints, totalPoints } = await getVotesBySong(
-      song.id
-    );
-
-    songsWithPoints.push({
-      id: song.id,
-      country_name: song.country_name || "Unknown",
-      country_id: song.country_id,
-      artist: song.artist,
-      title: song.title,
-      venue_type: song.venue_type,
-      juryPoints,
-      televotePoints,
-      totalPoints,
-    });
-  }
+  // Fetch songs with pre-calculated points
+  const { songs: songsWithPoints, errorMessage: songsError } =
+    await getSongsByContestWithPoints(contest.id);
 
   // Group songs by venue type
   const songsByVenue = songsWithPoints.reduce((acc, song) => {

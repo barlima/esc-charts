@@ -11,31 +11,13 @@ import {
 import { 
   getContestByYear, 
   getVotesBySong,
+  getSongPosition,
 } from "@/app/actions";
 import { notFound } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
-
-// Function to get song position
-async function getSongPosition(songId: number, venueType: VenueType): Promise<number | null> {
-  try {
-    const { data } = await supabase
-      .from('songs')
-      .select('id, points')
-      .eq('venue_type', venueType)
-      .order('points', { ascending: false });
-    
-    if (!data) return null;
-    
-    const songIndex = data.findIndex(song => song.id === songId);
-    return songIndex !== -1 ? songIndex + 1 : null;
-  } catch (err) {
-    console.error('Error getting song position:', err);
-    return null;
-  }
-}
 
 export default async function SongPage({
   params,
@@ -106,9 +88,9 @@ export default async function SongPage({
     await getVotesBySong(song.id);
 
   // Get position in final
-  const finalPosition = song.venue_type === 'final' 
+  const { position: finalPosition } = song.venue_type === 'final' 
     ? await getSongPosition(song.id, 'final')
-    : null;
+    : { position: null };
 
   // Find if this country had a semifinal performance
   let semifinalSong = null;
@@ -137,7 +119,8 @@ export default async function SongPage({
       semifinalTelevotePoints = semifinalPoints.televotePoints;
       semifinalTotalPoints = semifinalPoints.totalPoints;
       
-      semifinalPosition = await getSongPosition(semifinalData.id, semifinalData.venue_type as VenueType);
+      const { position } = await getSongPosition(semifinalData.id, semifinalData.venue_type as VenueType);
+      semifinalPosition = position;
     }
   }
 
