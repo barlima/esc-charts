@@ -227,7 +227,17 @@ export async function getSongsByContestWithPoints(contestId: number): Promise<{
   }>;
   errorMessage: string | null;
 }> {
-  let songs: any[] = [];
+  let songs: Array<{
+    id: number;
+    country_name: string;
+    country_id: number;
+    artist: string;
+    title: string;
+    venue_type: "final" | "semifinal1" | "semifinal2";
+    juryPoints: number | null;
+    televotePoints: number | null;
+    totalPoints: number | null;
+  }> = [];
   let errorMessage: string | null = null;
 
   try {
@@ -240,7 +250,7 @@ export async function getSongsByContestWithPoints(contestId: number): Promise<{
       errorMessage = error.message;
     } else if (data) {
       // Cast each row and explicitly handle string columns to ensure type compatibility
-      songs = (data as any[]).map((song) => ({
+      songs = (data as SongWithPointsResponse[]).map((song) => ({
         id: song.id,
         country_name: String(song.country_name || "Unknown"),
         country_id: song.country_id,
