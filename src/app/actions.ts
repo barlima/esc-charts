@@ -4,8 +4,9 @@ import { supabase } from "@/utils/supabase";
 import { Tables } from "@/types/supabase";
 
 export type Contest = Tables<"contests">;
-export type Song = Tables<"songs"> & { country_name?: string };
+export type Song = Tables<"songs"> & { country_name?: string; country_slug?: string };
 export type Vote = Tables<"votes">;
+export type Country = Tables<"countries">;
 
 export async function getContests(): Promise<{ 
   contests: Contest[];
@@ -143,4 +144,80 @@ export async function getVotesBySong(songId: number): Promise<{
   }
 
   return { juryPoints, televotePoints, totalPoints, errorMessage };
+}
+
+export async function getSongByCountrySlug(contestId: number, countrySlug: string): Promise<{
+  song: (Song & { country_id: number }) | null;
+  errorMessage: string | null;
+}> {
+  let song: (Song & { country_id: number }) | null = null;
+  let errorMessage: string | null = null;
+
+  try {
+    const { data, error } = await supabase
+      .from('songs')
+      .select(`
+        *,
+        countries:country_id (id, name, slug)
+      `)
+      .eq('contest_id', contestId)
+      .eq('countries.slug', countrySlug)
+      .single();
+    
+    if (error) {
+      console.error('Supabase error:', error);
+      errorMessage = error.message;
+    } else if (data) {
+      // Type assertion to help TypeScript understand the structure
+      type SongWithCountry = Song & { 
+        countries: { 
+          id: number; 
+          name: string; 
+          slug: string 
+        } | null
+      };
+      const typedData = data as SongWithCountry;
+      
+      song = {
+        ...typedData,
+        country_name: typedData.countries?.name || 'Unknown',
+        country_slug: typedData.countries?.slug || '',
+        country_id: typedData.countries?.id || typedData.country_id
+      };
+    }
+  } catch (err) {
+    console.error('Error connecting to Supabase:', err);
+    errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+  }
+
+  return { song, errorMessage };
+}
+
+export async function getSongPosition(songId: number, venueType: "final" | "semifinal1" | "semifinal2"): Promise<{
+  position: number | null;
+  errorMessage: string | null;
+}> {
+  let position: number | null = null;
+  let errorMessage: string | null = null;
+
+  try {
+    const { data, error } = await supabase
+      .from('songs')
+      .select('id, points')
+      .eq('venue_type', venueType)
+      .order('points', { ascending: false });
+    
+    if (error) {
+      console.error('Supabase error:', error);
+      errorMessage = error.message;
+    } else if (data) {
+      const songIndex = data.findIndex(song => song.id === songId);
+      position = songIndex !== -1 ? songIndex + 1 : null;
+    }
+  } catch (err) {
+    console.error('Error connecting to Supabase:', err);
+    errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+  }
+
+  return { position, errorMessage };
 } 

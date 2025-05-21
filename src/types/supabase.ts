@@ -47,6 +47,7 @@ export type Database = {
           flag_url: string | null
           id: number
           name: string
+          slug: string | null
           wins: number | null
         }
         Insert: {
@@ -56,6 +57,7 @@ export type Database = {
           flag_url?: string | null
           id?: number
           name: string
+          slug?: string | null
           wins?: number | null
         }
         Update: {
@@ -65,6 +67,7 @@ export type Database = {
           flag_url?: string | null
           id?: number
           name?: string
+          slug?: string | null
           wins?: number | null
         }
         Relationships: []

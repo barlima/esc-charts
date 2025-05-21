@@ -1,24 +1,18 @@
-import {
-  Container,
-  Heading,
-  Text,
-  Box,
-  Flex,
-  Card,
-  Link,
-} from "@radix-ui/themes";
+import { Container, Heading, Text, Box, Flex, Card } from "@radix-ui/themes";
 import {
   getContestByYear,
   getSongsByContest,
   getVotesBySong,
 } from "@/app/actions";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
 
 type SongWithPoints = {
   id: number;
   country_name: string;
+  country_id: number;
   artist: string;
   title: string;
   venue_type: VenueType;
@@ -76,6 +70,7 @@ export default async function ContestPage({
     songsWithPoints.push({
       id: song.id,
       country_name: song.country_name || "Unknown",
+      country_id: song.country_id,
       artist: song.artist,
       title: song.title,
       venue_type: song.venue_type,
@@ -116,7 +111,7 @@ export default async function ContestPage({
         {/* Breadcrumbs */}
         <Box>
           <Flex gap="2" align="center">
-            <Link href="/" size="2" color="gray">
+            <Link href="/" className="text-inherit">
               Home
             </Link>
             <Text size="2" color="gray">
@@ -154,60 +149,68 @@ export default async function ContestPage({
 
             <Flex direction="column" gap="3">
               {songsByVenue[venueType].map((song) => (
-                <Card key={song.id} className="p-4">
-                  <Flex align="center" justify="between">
-                    <Box>
-                      <Flex direction="column" gap="1">
-                        <Text size="2" color="gray">
-                          {song.country_name}
-                        </Text>
-                        <Text weight="medium">
-                          {song.artist} - {song.title}
-                        </Text>
-                      </Flex>
-                    </Box>
-                    <Box>
-                      <Flex gap="4" align="center">
-                        {/* Points display */}
-                        {song.juryPoints !== null &&
-                        song.televotePoints !== null ? (
-                          // Both jury and televoting points exist, show all three
-                          <>
-                            <Flex direction="column" align="end">
-                              <Text size="1" color="gray">
-                                Jury
-                              </Text>
-                              <Text weight="medium">{song.juryPoints}</Text>
-                            </Flex>
-                            <Flex direction="column" align="end">
-                              <Text size="1" color="gray">
-                                Televote
-                              </Text>
-                              <Text weight="medium">{song.televotePoints}</Text>
-                            </Flex>
-                            {song.totalPoints !== null && (
+                <Card key={song.id} asChild>
+                  <Link
+                    href={`/contest/${contest.year}/country/${song.country_id}`}
+                    className="block no-underline text-inherit"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <Flex align="center" justify="between">
+                      <Box>
+                        <Flex direction="column" gap="1">
+                          <Text size="2" color="gray">
+                            {song.country_name}
+                          </Text>
+                          <Text weight="medium">
+                            {song.artist} - {song.title}
+                          </Text>
+                        </Flex>
+                      </Box>
+                      <Box>
+                        <Flex gap="4" align="center">
+                          {/* Points display */}
+                          {song.juryPoints !== null &&
+                          song.televotePoints !== null ? (
+                            // Both jury and televoting points exist, show all three
+                            <>
                               <Flex direction="column" align="end">
                                 <Text size="1" color="gray">
-                                  Total
+                                  Jury
+                                </Text>
+                                <Text weight="medium">{song.juryPoints}</Text>
+                              </Flex>
+                              <Flex direction="column" align="end">
+                                <Text size="1" color="gray">
+                                  Televote
+                                </Text>
+                                <Text weight="medium">
+                                  {song.televotePoints}
+                                </Text>
+                              </Flex>
+                              {song.totalPoints !== null && (
+                                <Flex direction="column" align="end">
+                                  <Text size="1" color="gray">
+                                    Total
+                                  </Text>
+                                  <Text weight="bold">{song.totalPoints}</Text>
+                                </Flex>
+                              )}
+                            </>
+                          ) : (
+                            // Only one type of points or total only, just show total
+                            song.totalPoints !== null && (
+                              <Flex direction="column" align="end">
+                                <Text size="1" color="gray">
+                                  Points
                                 </Text>
                                 <Text weight="bold">{song.totalPoints}</Text>
                               </Flex>
-                            )}
-                          </>
-                        ) : (
-                          // Only one type of points or total only, just show total
-                          song.totalPoints !== null && (
-                            <Flex direction="column" align="end">
-                              <Text size="1" color="gray">
-                                Points
-                              </Text>
-                              <Text weight="bold">{song.totalPoints}</Text>
-                            </Flex>
-                          )
-                        )}
-                      </Flex>
-                    </Box>
-                  </Flex>
+                            )
+                          )}
+                        </Flex>
+                      </Box>
+                    </Flex>
+                  </Link>
                 </Card>
               ))}
             </Flex>

@@ -1,5 +1,6 @@
 import { Container, Heading, Text, Box, Flex, Card } from "@radix-ui/themes";
 import { getContests } from "./actions";
+import Link from "next/link";
 
 export default async function Home() {
   // Fetch contests using the server action
@@ -38,9 +39,10 @@ export default async function Home() {
         <Flex direction="column" gap="3">
           {contests.map((contest) => (
             <Card key={contest.id} asChild>
-              <a
+              <Link
                 href={`/contest/${contest.year}`}
-                className="block p-4 no-underline hover:cursor-pointer"
+                className="block p-4 no-underline hover:cursor-pointer text-inherit"
+                style={{ textDecoration: "none", color: "inherit" }}
               >
                 <Flex align="center" justify="between">
                   <Text size="4" weight="medium">
@@ -63,7 +65,7 @@ export default async function Home() {
                     </svg>
                   </Box>
                 </Flex>
-              </a>
+              </Link>
             </Card>
           ))}
         </Flex>
