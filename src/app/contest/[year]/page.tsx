@@ -44,9 +44,10 @@ function formatVenueType(venueType: VenueType): string {
 export default async function ContestPage({
   params,
 }: {
-  params: { year: string };
+  params: Promise<{ year: string }>;
 }) {
-  const year = parseInt(params.year, 10);
+  const { year: contestYear } = await params;
+  const year = parseInt(contestYear, 10);
 
   if (isNaN(year)) {
     notFound();
