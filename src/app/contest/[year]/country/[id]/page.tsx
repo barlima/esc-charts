@@ -16,6 +16,7 @@ import {
 import { notFound } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
+import CountryChartContainer from "@/components/CountryChartContainer";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
 
@@ -203,6 +204,15 @@ export default async function SongPage({
                 <Heading size="6">{finalTotalPoints !== null ? finalTotalPoints : 'N/A'}</Heading>
               </Flex>
             </Grid>
+            
+            {/* Points Chart for Final */}
+            {(finalJuryPoints !== null || finalTelevotePoints !== null || finalTotalPoints !== null) && (
+              <CountryChartContainer
+                juryPoints={finalJuryPoints}
+                televotePoints={finalTelevotePoints}
+                totalPoints={finalTotalPoints}
+              />
+            )}
           </Card>
         </Box>
 
@@ -235,6 +245,15 @@ export default async function SongPage({
                   <Heading size="6">{semifinalTotalPoints !== null ? semifinalTotalPoints : 'N/A'}</Heading>
                 </Flex>
               </Grid>
+              
+              {/* Points Chart for Semifinal */}
+              {(semifinalJuryPoints !== null || semifinalTelevotePoints !== null || semifinalTotalPoints !== null) && (
+                <CountryChartContainer
+                  juryPoints={semifinalJuryPoints}
+                  televotePoints={semifinalTelevotePoints}
+                  totalPoints={semifinalTotalPoints}
+                />
+              )}
             </Card>
           </Box>
         )}

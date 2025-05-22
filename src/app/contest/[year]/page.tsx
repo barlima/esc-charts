@@ -2,6 +2,8 @@ import { Container, Heading, Text, Box, Flex, Card } from "@radix-ui/themes";
 import { getContestByYear, getSongsByContestWithPoints } from "@/app/actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/utils/supabase";
+import ChartContainer from "@/components/ChartContainer";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
 
@@ -79,6 +81,12 @@ export default async function ContestPage({
     });
   }
 
+  // Prepare data for the voting chart (only for final)
+  const finalSongs = songsByVenue["final"] || [];
+  const chartCountries = finalSongs.map(song => song.country_name);
+  const chartJuryVotes = finalSongs.map(song => song.juryPoints);
+  const chartTelevoteVotes = finalSongs.map(song => song.televotePoints);
+
   return (
     <Container className="py-16 max-w-3xl mx-auto">
       <Flex direction="column" gap="6">
@@ -109,6 +117,15 @@ export default async function ContestPage({
               Error loading data: {contestError || songsError}
             </Text>
           </Card>
+        )}
+
+        {/* Voting Distribution Chart (only for finals) */}
+        {finalSongs.length > 0 && (
+          <ChartContainer
+            countries={chartCountries}
+            juryVotes={chartJuryVotes}
+            televoteVotes={chartTelevoteVotes}
+          />
         )}
 
         {/* Display songs by venue */}
