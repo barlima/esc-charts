@@ -44,8 +44,9 @@ export default function CountryChartContainer({
     // Modern system (2016+): Use jury and televote split if available
     // Ensure values default to 0 if null for countries that didn't receive any points
     const processedJuryPoints = juryPoints !== null ? juryPoints : 0;
-    const processedTelevotePoints = televotePoints !== null ? televotePoints : 0;
-    
+    const processedTelevotePoints =
+      televotePoints !== null ? televotePoints : 0;
+
     return (
       <Box mt="6">
         <CountryPointsChart
@@ -56,19 +57,6 @@ export default function CountryChartContainer({
       </Box>
     );
   } else {
-    // Pre-2016 system: Only show total points in a gauge chart
-    if (totalPoints === null) {
-      return null; // Don't show any chart if no total points
-    }
-    
-    return (
-      <Box mt="6">
-        <CountryPointsChart
-          juryPoints={null}
-          televotePoints={null}
-          totalPoints={totalPoints}
-        />
-      </Box>
-    );
+    return null; // Don't show any chart if no total points
   }
 }
