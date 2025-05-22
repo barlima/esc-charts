@@ -12,11 +12,14 @@ import {
   getContestByYear,
   getVotesBySong,
   getSongPosition,
+  getVotesReceivedByCountry,
+  getParticipatingCountries,
 } from "@/app/actions";
 import { notFound } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
 import CountryChartContainer from "@/components/CountryChartContainer";
+import CountryVotesChartContainer from "@/components/CountryVotesChartContainer";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
 
@@ -98,6 +101,21 @@ export default async function SongPage({
       ? await getSongPosition(song.id, "final")
       : { position: null };
 
+  // Get all countries participating in the final
+  let finalCountries: Array<{ id: number; name: string }> = [];
+  let finalCountriesError: string | null = null;
+  if (contest) {
+    const result = await getParticipatingCountries(contest.id, "final");
+    finalCountries = result.countries;
+    finalCountriesError = result.errorMessage;
+  }
+
+  // Get votes received from each country for the final
+  const { votes: finalVotes, errorMessage: finalVotesError } =
+    song.venue_type === "final"
+      ? await getVotesReceivedByCountry(song.id)
+      : { votes: [], errorMessage: null };
+
   // Find if this country had a semifinal performance
   let semifinalSong = null;
   let semifinalJuryPoints = null;
@@ -136,6 +154,72 @@ export default async function SongPage({
   // Check if the song qualified to the final
   const qualified = song.qualified === true;
 
+  // Get votes received from each country for the semifinal
+  let semifinalVotes: Array<{
+    fromCountryName: string;
+    juryPoints: number | null;
+    televotePoints: number | null;
+  }> = [];
+  let semifinalVotesError: string | null = null;
+
+  if (semifinalSong) {
+    const result = await getVotesReceivedByCountry(semifinalSong.id);
+    semifinalVotes = result.votes;
+    semifinalVotesError = result.errorMessage;
+  }
+
+  // Get all participating countries in the semifinal (if applicable)
+  let semifinalCountries: Array<{ id: number; name: string }> = [];
+  let semifinalCountriesError: string | null = null;
+
+  if (contest && semifinalVenueType) {
+    const result = await getParticipatingCountries(
+      contest.id,
+      semifinalVenueType
+    );
+    semifinalCountries = result.countries;
+    semifinalCountriesError = result.errorMessage;
+  }
+
+  // Create comprehensive votes including all countries
+  const enrichedFinalVotes = [...finalVotes];
+
+  // Add any missing countries (with zero votes)
+  finalCountries.forEach((country) => {
+    // Check if this country is already in our votes
+    const exists = enrichedFinalVotes.some(
+      (vote) =>
+        vote.fromCountryName.toLowerCase() === country.name.toLowerCase()
+    );
+
+    if (!exists) {
+      enrichedFinalVotes.push({
+        fromCountryName: country.name,
+        juryPoints: 0,
+        televotePoints: 0,
+      });
+    }
+  });
+
+  // Same for semifinal
+  const enrichedSemifinalVotes = [...semifinalVotes];
+
+  // Add any missing countries (with zero votes)
+  semifinalCountries.forEach((country) => {
+    const exists = enrichedSemifinalVotes.some(
+      (vote) =>
+        vote.fromCountryName.toLowerCase() === country.name.toLowerCase()
+    );
+
+    if (!exists) {
+      enrichedSemifinalVotes.push({
+        fromCountryName: country.name,
+        juryPoints: 0,
+        televotePoints: 0,
+      });
+    }
+  });
+
   return (
     <Container className="py-16 max-w-3xl mx-auto">
       <Flex direction="column" gap="6">
@@ -173,10 +257,21 @@ export default async function SongPage({
         </Heading>
 
         {/* Error Messages */}
-        {(contestError || songError) && (
+        {(contestError ||
+          songError ||
+          finalVotesError ||
+          semifinalVotesError ||
+          finalCountriesError ||
+          semifinalCountriesError) && (
           <Card className="p-4 mb-4 bg-red-50">
             <Text size="2" color="red">
-              Error loading data: {contestError || songError}
+              Error loading data:{" "}
+              {contestError ||
+                songError ||
+                finalVotesError ||
+                semifinalVotesError ||
+                finalCountriesError ||
+                semifinalCountriesError}
             </Text>
           </Card>
         )}
@@ -246,7 +341,19 @@ export default async function SongPage({
           </Card>
         </Box>
 
-        {/* Semifinal Results (only if participated in a semifinal) */}
+        {/* Votes from other countries for Final */}
+        {song.venue_type === "final" && (
+          <Box mt="4">
+            <Card className="p-6">
+              <CountryVotesChartContainer
+                votes={enrichedFinalVotes}
+                title="Votes Received from Other Countries (Final)"
+              />
+            </Card>
+          </Box>
+        )}
+
+        {/* Semifinal Results */}
         {semifinalSong && (
           <>
             <Box mt="4">
@@ -302,6 +409,7 @@ export default async function SongPage({
               </Card>
             </Box>
 
+            {/* Semifinal Points Chart */}
             <Box mt="4">
               <Card className="p-6">
                 {/* Points Chart for Semifinal */}
@@ -315,6 +423,20 @@ export default async function SongPage({
                     year={year}
                   />
                 )}
+              </Card>
+            </Box>
+
+            {/* Votes from other countries for Semifinal */}
+            <Box mt="4">
+              <Card className="p-6">
+                <CountryVotesChartContainer
+                  votes={enrichedSemifinalVotes}
+                  title={`Votes Received from Other Countries (${
+                    semifinalVenueType === "semifinal1"
+                      ? "Semi-Final 1"
+                      : "Semi-Final 2"
+                  })`}
+                />
               </Card>
             </Box>
           </>
