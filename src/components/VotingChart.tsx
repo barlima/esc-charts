@@ -24,7 +24,7 @@ export default function VotingChart({
 
     // Use the color palette from constants
     const colorPalette = CHART_COLORS;
-    
+
     const chart = echarts.init(chartRef.current);
 
     // Check if we have both jury and televote data
@@ -36,18 +36,17 @@ export default function VotingChart({
     const sortedData = countries
       .map((country, i) => ({
         country,
-        juryVote: juryVotes[i] || 0,
-        televoteVote: televoteVotes[i] || 0,
-        totalPoints: (juryVotes[i] || 0) + (televoteVotes[i] || 0),
+        juryVote: juryVotes[i] !== null ? juryVotes[i] : 0,
+        televoteVote: televoteVotes[i] !== null ? televoteVotes[i] : 0,
+        totalPoints:
+          (juryVotes[i] !== null ? juryVotes[i] : 0) +
+          (televoteVotes[i] !== null ? televoteVotes[i] : 0),
       }))
       .sort((a, b) => a.totalPoints - b.totalPoints);
 
     // Extract sorted data - for y-axis in ECharts the first item is at the bottom
     const sortedCountries = sortedData.map((d) => d.country);
     // Add total points to country labels for clarity
-    const yAxisLabels = sortedData.map(
-      (d) => `${d.country} (${d.totalPoints})`
-    );
     const sortedJuryVotes = sortedData.map((d) => d.juryVote);
     const sortedTelevoteVotes = sortedData.map((d) => d.televoteVote);
 
@@ -56,7 +55,7 @@ export default function VotingChart({
 
     if (hasBothTypes) {
       // Create pyramid chart (bar chart with negative values on left side)
-      const option = {
+      chart.setOption({
         // Set the global color palette
         color: colorPalette,
         // Remove title
@@ -113,12 +112,13 @@ export default function VotingChart({
             barWidth: barWidth, // Fixed width of 20px
             barGap: "10%", // Add gap between bars
             itemStyle: {
-              borderRadius: [50, 0, 0, 50] // Round top-left and bottom-left corners
+              borderRadius: [50, 0, 0, 50], // Round top-left and bottom-left corners
             },
             label: {
               show: true,
-              formatter: function (params: any) {
-                return params.value ? Math.abs(params.value).toString() : "";
+              formatter: function (params: { value: number }) {
+                // Always display the value, even if it's 0
+                return Math.abs(params.value).toString();
               },
               position: "outside", // Always outside the bar
               color: "#ffffff",
@@ -135,15 +135,16 @@ export default function VotingChart({
             barWidth: barWidth, // Fixed width of 20px
             barGap: "10%", // Add gap between bars
             itemStyle: {
-              borderRadius: [0, 50, 50, 0] // Round top-right and bottom-right corners
+              borderRadius: [0, 50, 50, 0], // Round top-right and bottom-right corners
             },
             label: {
               show: true,
               position: "outside", // Always outside the bar
               color: "#ffffff",
               fontSize: 12,
-              formatter: function (params: any) {
-                return params.value || "";
+              formatter: function (params: { value: number }) {
+                // Always display the value, even if it's 0
+                return params.value.toString();
               },
               // Ensure labels for zero values are positioned on the right side
               positionByValue: false,
@@ -153,9 +154,7 @@ export default function VotingChart({
             data: sortedTelevoteVotes.map((vote) => (vote === null ? 0 : vote)),
           },
         ],
-      };
-
-      chart.setOption(option as any);
+      });
     } else {
       // Create simple column chart for available data
       const availableVotes = juryVotes.some((v) => v !== null)
@@ -165,7 +164,7 @@ export default function VotingChart({
         ? "Jury"
         : "Televote";
 
-      const option = {
+      chart.setOption({
         // Set the global color palette
         color: colorPalette,
         // Remove title
@@ -215,7 +214,7 @@ export default function VotingChart({
             type: "bar",
             barWidth: barWidth, // Fixed width of 20px
             itemStyle: {
-              borderRadius: [0, 10, 10, 0] // Rounded corners
+              borderRadius: [0, 10, 10, 0], // Rounded corners
             },
             label: {
               show: true,
@@ -226,9 +225,7 @@ export default function VotingChart({
             data: availableVotes.map((vote) => (vote === null ? 0 : vote)),
           },
         ],
-      };
-
-      chart.setOption(option as any);
+      });
     }
 
     // Cleanup function

@@ -3,4 +3,10 @@
  */
 
 // Chart color palette
-export const CHART_COLORS = ['#cdb4db', '#a2d2ff', '#ffc8dd', '#bde0fe', '#ffafcc']; 
+export const CHART_COLORS = [
+  "#06d6a0",
+  "#ffd166",
+  "#ef476f",
+  "#118ab2",
+  "#073b4c",
+];

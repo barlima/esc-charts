@@ -1,12 +1,23 @@
-'use client';
+"use client";
 
-import dynamic from 'next/dynamic';
-import { Box, Card, Heading } from '@radix-ui/themes';
+import dynamic from "next/dynamic";
+import { Box, Card } from "@radix-ui/themes";
 
 // Dynamic import for the chart component
-const VotingChart = dynamic(() => import('@/components/VotingChart'), {
+const VotingChart = dynamic(() => import("@/components/VotingChart"), {
   ssr: false,
-  loading: () => <div style={{ height: '720px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading chart...</div>
+  loading: () => (
+    <div
+      style={{
+        height: "720px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      Loading chart...
+    </div>
+  ),
 });
 
 type ChartContainerProps = {
@@ -21,12 +32,9 @@ export default function ChartContainer({
   televoteVotes,
 }: ChartContainerProps) {
   return (
-    <Box className="mb-8">
-      <Heading size="5" className="mb-4">
-        Voting Distribution
-      </Heading>
+    <Box className="mb-8 mt-8">
       <Card>
-        <VotingChart 
+        <VotingChart
           countries={countries}
           juryVotes={juryVotes}
           televoteVotes={televoteVotes}
@@ -35,4 +43,4 @@ export default function ChartContainer({
       </Card>
     </Box>
   );
-} 
+}
