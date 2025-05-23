@@ -272,6 +272,13 @@ export type Database = {
       }
     }
     Functions: {
+      get_participating_countries_optimized: {
+        Args: { contest_id_param: number; venue_type_param: string }
+        Returns: {
+          country_id: number
+          country_name: string
+        }[]
+      }
       get_song_points: {
         Args: { song_id_param: number }
         Returns: {
@@ -281,7 +288,10 @@ export type Database = {
         }[]
       }
       get_song_position: {
-        Args: { song_id_param: number; venue_type_param: string }
+        Args: {
+          song_id_param: number
+          venue_type_param: Database["public"]["Enums"]["venue_type"]
+        }
         Returns: number
       }
       get_songs_with_points: {
@@ -292,10 +302,18 @@ export type Database = {
           country_id: number
           artist: string
           title: string
-          venue_type: string
+          venue_type: Database["public"]["Enums"]["venue_type"]
           jury_points: number
           televote_points: number
           total_points: number
+        }[]
+      }
+      get_votes_received_by_country_optimized: {
+        Args: { song_id_param: number }
+        Returns: {
+          from_country_name: string
+          jury_points: number
+          televote_points: number
         }[]
       }
     }

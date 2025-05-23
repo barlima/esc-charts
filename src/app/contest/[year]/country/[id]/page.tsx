@@ -348,6 +348,7 @@ export default async function SongPage({
               <CountryVotesChartContainer
                 votes={enrichedFinalVotes}
                 title="Votes Received from Other Countries (Final)"
+                height={finalCountries.length * 50 + "px"}
               />
             </Card>
           </Box>
@@ -436,6 +437,7 @@ export default async function SongPage({
                       ? "Semi-Final 1"
                       : "Semi-Final 2"
                   })`}
+                  height={semifinalCountries.length * 50 + "px"}
                 />
               </Card>
             </Box>

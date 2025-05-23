@@ -27,11 +27,13 @@ type CountryVotesChartContainerProps = {
     televotePoints: number | null;
   }>;
   title: string;
+  height?: string;
 };
 
 export default function CountryVotesChartContainer({
   votes,
   title,
+  height,
 }: CountryVotesChartContainerProps) {
   if (!votes || votes.length === 0) {
     return (
@@ -44,7 +46,7 @@ export default function CountryVotesChartContainer({
   return (
     <Box>
       <h3 className="text-lg font-medium mb-4">{title}</h3>
-      <CountryVotesChart countryVotes={votes} />
+      <CountryVotesChart countryVotes={votes} height={height} />
     </Box>
   );
 } 

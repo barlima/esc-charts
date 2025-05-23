@@ -318,133 +318,20 @@ export async function getVotesReceivedByCountry(songId: number): Promise<{
   let errorMessage: string | null = null;
 
   try {
-    // First get the song to find its venue type and contest
-    const { data: songData, error: songError } = await supabase
-      .from("songs")
-      .select("id, venue_type, contest_id, country_id")
-      .eq("id", songId)
-      .single();
-
-    if (songError) {
-      console.error("Supabase error (song):", songError);
-      errorMessage = songError.message;
-      return { votes, errorMessage };
-    }
-
-    if (!songData) {
-      errorMessage = "Song not found";
-      return { votes, errorMessage };
-    }
-
-    const venueType = songData.venue_type;
-    const contestId = songData.contest_id;
-    const countryId = songData.country_id;
-
-    // Find the venue ID
-    const { data: venueData, error: venueError } = await supabase
-      .from("venues")
-      .select("id")
-      .eq("contest_id", contestId)
-      .eq("type", venueType)
-      .single();
-
-    if (venueError) {
-      console.error("Supabase error (venue):", venueError);
-      errorMessage = venueError.message;
-      return { votes, errorMessage };
-    }
-
-    if (!venueData) {
-      errorMessage = "Venue not found";
-      return { votes, errorMessage };
-    }
-
-    const venueId = venueData.id;
-
-    // Get jury votes by venue (not just by song)
-    const { data: juryData, error: juryError } = await supabase
-      .from("votes")
-      .select(
-        `
-        points,
-        from_country_id,
-        to_country_id,
-        from_country:countries!votes_from_country_id_fkey (name),
-        to_country:countries!votes_to_country_id_fkey (name)
-        `
-      )
-      .eq("venue_id", venueId)
-      .eq("jury_or_televote", "jury");
-
-    if (juryError) {
-      console.error("Supabase error (jury votes):", juryError);
-      errorMessage = juryError.message;
-      return { votes, errorMessage };
-    }
-
-    // Get televote votes by venue
-    const { data: televoteData, error: televoteError } = await supabase
-      .from("votes")
-      .select(
-        `
-        points,
-        from_country_id,
-        to_country_id,
-        from_country:countries!votes_from_country_id_fkey (name),
-        to_country:countries!votes_to_country_id_fkey (name)
-        `
-      )
-      .eq("venue_id", venueId)
-      .eq("jury_or_televote", "televote");
-
-    if (televoteError) {
-      console.error("Supabase error (televote votes):", televoteError);
-      errorMessage = televoteError.message;
-      return { votes, errorMessage };
-    }
-
-    // Create a map to combine jury and televote data
-    const votesByCountry = new Map<
-      number,
-      {
-        fromCountryName: string;
-        juryPoints: number | null;
-        televotePoints: number | null;
-      }
-    >();
-
-    // Process jury votes - only include votes for this song's country
-    juryData?.forEach((vote) => {
-      if (vote.to_country_id === countryId) {
-        votesByCountry.set(vote.from_country_id, {
-          fromCountryName: vote.from_country?.name || "Unknown",
-          juryPoints: vote.points,
-          televotePoints: null,
-        });
-      }
+    const { data, error } = await supabase.rpc("get_votes_received_by_country_optimized", {
+      song_id_param: songId,
     });
 
-    // Process televote votes - only include votes for this song's country
-    televoteData?.forEach((vote) => {
-      if (vote.to_country_id === countryId) {
-        const existing = votesByCountry.get(vote.from_country_id);
-        if (existing) {
-          existing.televotePoints = vote.points;
-        } else {
-          votesByCountry.set(vote.from_country_id, {
-            fromCountryName: vote.from_country?.name || "Unknown",
-            juryPoints: null,
-            televotePoints: vote.points,
-          });
-        }
-      }
-    });
-
-    // Convert map to array
-    votes = Array.from(votesByCountry.values());
-    
-    // Log for debugging
-    console.log(`Found ${votes.length} votes for song ${songId}`);
+    if (error) {
+      console.error("Supabase error:", error);
+      errorMessage = error.message;
+    } else if (data) {
+      votes = data.map((row) => ({
+        fromCountryName: row.from_country_name,
+        juryPoints: row.jury_points,
+        televotePoints: row.televote_points,
+      }));
+    }
   } catch (err) {
     console.error("Error connecting to Supabase:", err);
     errorMessage =
@@ -471,32 +358,19 @@ export async function getParticipatingCountries(
   let errorMessage: string | null = null;
 
   try {
-    const { data, error } = await supabase
-      .from("songs")
-      .select(
-        `
-        country_id,
-        countries:country_id (id, name)
-      `
-      )
-      .eq("contest_id", contestId)
-      .eq("venue_type", venueType);
+    const { data, error } = await supabase.rpc("get_participating_countries_optimized", {
+      contest_id_param: contestId,
+      venue_type_param: venueType,
+    });
 
     if (error) {
       console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
-      // Extract unique countries
-      const uniqueCountries = new Map();
-      data.forEach((song) => {
-        if (song.countries && !uniqueCountries.has(song.countries.id)) {
-          uniqueCountries.set(song.countries.id, {
-            id: song.countries.id,
-            name: song.countries.name,
-          });
-        }
-      });
-      countries = Array.from(uniqueCountries.values());
+      countries = data.map((row) => ({
+        id: row.country_id,
+        name: row.country_name,
+      }));
     }
   } catch (err) {
     console.error("Error connecting to Supabase:", err);
