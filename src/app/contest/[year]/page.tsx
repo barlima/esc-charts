@@ -3,10 +3,10 @@ import { getContestByYear, getSongsByContestWithPoints } from "@/app/actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ChartContainer from "@/components/ChartContainer";
-import { 
-  shouldShowSeparateVotes, 
-  isSingleVotingSystem, 
-  getPrimaryVotingType 
+import {
+  shouldShowSeparateVotes,
+  isSingleVotingSystem,
+  getPrimaryVotingType,
 } from "@/utils/eurovision";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
@@ -66,12 +66,12 @@ export default async function ContestPage({
   const primaryVotingType = getPrimaryVotingType(year);
 
   // Process songs based on the voting system
-  const processedSongs = songsWithPoints.map(song => {
+  const processedSongs = songsWithPoints.map((song) => {
     if (isSingleSystem) {
       // For single voting system, ensure total points default to 0 if null
       return {
         ...song,
-        totalPoints: song.totalPoints !== null ? song.totalPoints : 0
+        totalPoints: song.totalPoints !== null ? song.totalPoints : 0,
       };
     } else {
       // For multiple voting systems, ensure jury and televote points default to 0 if null
@@ -80,8 +80,9 @@ export default async function ContestPage({
         juryPoints: song.juryPoints !== null ? song.juryPoints : 0,
         televotePoints: song.televotePoints !== null ? song.televotePoints : 0,
         // Recalculate total points to ensure consistency
-        totalPoints: (song.juryPoints !== null ? song.juryPoints : 0) + 
-                     (song.televotePoints !== null ? song.televotePoints : 0)
+        totalPoints:
+          (song.juryPoints !== null ? song.juryPoints : 0) +
+          (song.televotePoints !== null ? song.televotePoints : 0),
       };
     }
   });
@@ -114,17 +115,19 @@ export default async function ContestPage({
   // Prepare chart data for each venue type
   const chartDataByVenue = venueTypes.reduce((acc, venueType) => {
     const songs = songsByVenue[venueType] || [];
-    
+
     if (isSingleSystem) {
       // For single voting systems, put totalPoints into the appropriate array
       acc[venueType] = {
         countries: songs.map((song) => song.country_name),
-        juryVotes: primaryVotingType === 'jury' 
-          ? songs.map((song) => song.totalPoints) 
-          : songs.map(() => null),
-        televoteVotes: primaryVotingType === 'televote' 
-          ? songs.map((song) => song.totalPoints)
-          : songs.map(() => null),
+        juryVotes:
+          primaryVotingType === "jury"
+            ? songs.map((song) => song.totalPoints)
+            : songs.map(() => null),
+        televoteVotes:
+          primaryVotingType === "televote"
+            ? songs.map((song) => song.totalPoints)
+            : songs.map(() => null),
       };
     } else {
       // For hybrid systems, use separate jury and televote points

@@ -9,7 +9,8 @@
     "lint": "next lint",
     "populate-db": "ts-node --project scripts/tsconfig.json scripts/populateDb.ts",
     "populate-db:cleanup": "ts-node --project scripts/tsconfig.json scripts/populateDb.ts --cleanup",
-    "update-types": "ts-node scripts/generate-types.ts"
+    "update-types": "ts-node scripts/generate-types.ts",
+    "import-votes": "ts-node --project scripts/tsconfig.json scripts/import-votes.ts"
   },
   "dependencies": {
     "@radix-ui/themes": "^3.2.1",
