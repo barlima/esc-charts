@@ -9,7 +9,7 @@ const CountryVotesChart = dynamic(() => import("@/components/CountryVotesChart")
   loading: () => (
     <div
       style={{
-        height: "300px",
+        height: "800px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

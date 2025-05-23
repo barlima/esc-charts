@@ -308,6 +308,20 @@ export type Database = {
           total_points: number
         }[]
       }
+      get_votes_given_by_country: {
+        Args: {
+          country_id_param: number
+          contest_id_param: number
+          venue_type_param: string
+        }
+        Returns: {
+          points: number
+          to_country_name: string
+          artist: string
+          title: string
+          jury_or_televote: string
+        }[]
+      }
       get_votes_received_by_country_optimized: {
         Args: { song_id_param: number }
         Returns: {

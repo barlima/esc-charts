@@ -367,7 +367,7 @@ export async function getParticipatingCountries(
       console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
-      countries = data.map((row) => ({
+      countries = (data as Array<{ country_id: number; country_name: string }>).map((row) => ({
         id: row.country_id,
         name: row.country_name,
       }));
@@ -379,4 +379,55 @@ export async function getParticipatingCountries(
   }
 
   return { countries, errorMessage };
+}
+
+export async function getVotesGivenByCountry(
+  countryId: number,
+  contestId: number,
+  venueType: "final" | "semifinal1" | "semifinal2"
+): Promise<{
+  votes: Array<{
+    points: number;
+    toCountryName: string;
+    artist: string;
+    title: string;
+    voteType: "jury" | "televote";
+  }>;
+  errorMessage: string | null;
+}> {
+  let votes: Array<{
+    points: number;
+    toCountryName: string;
+    artist: string;
+    title: string;
+    voteType: "jury" | "televote";
+  }> = [];
+  let errorMessage: string | null = null;
+
+  try {
+    const { data, error } = await supabase.rpc("get_votes_given_by_country", {
+      country_id_param: countryId,
+      contest_id_param: contestId,
+      venue_type_param: venueType,
+    });
+
+    if (error) {
+      console.error("Supabase error:", error);
+      errorMessage = error.message;
+    } else if (data) {
+      votes = data.map((row) => ({
+        points: row.points,
+        toCountryName: row.to_country_name,
+        artist: row.artist,
+        title: row.title,
+        voteType: row.jury_or_televote as "jury" | "televote",
+      }));
+    }
+  } catch (err) {
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
+  }
+
+  return { votes, errorMessage };
 }

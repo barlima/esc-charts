@@ -14,12 +14,15 @@ import {
   getSongPosition,
   getVotesReceivedByCountry,
   getParticipatingCountries,
+  getVotesGivenByCountry,
 } from "@/app/actions";
 import { notFound } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
 import CountryChartContainer from "@/components/CountryChartContainer";
 import CountryVotesChartContainer from "@/components/CountryVotesChartContainer";
+import VotingList from "@/components/VotingList";
+import { shouldShowSeparateVotes } from "@/utils/eurovision";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
 
@@ -116,6 +119,10 @@ export default async function SongPage({
       ? await getVotesReceivedByCountry(song.id)
       : { votes: [], errorMessage: null };
 
+  // Get votes given by this country in the final
+  const { votes: finalVotesGiven, errorMessage: finalVotesGivenError } =
+    await getVotesGivenByCountry(countryIdNum, contest.id, "final");
+
   // Find if this country had a semifinal performance
   let semifinalSong = null;
   let semifinalJuryPoints = null;
@@ -166,6 +173,26 @@ export default async function SongPage({
     const result = await getVotesReceivedByCountry(semifinalSong.id);
     semifinalVotes = result.votes;
     semifinalVotesError = result.errorMessage;
+  }
+
+  // Get votes given by this country in the semifinal
+  let semifinalVotesGiven: Array<{
+    points: number;
+    toCountryName: string;
+    artist: string;
+    title: string;
+    voteType: "jury" | "televote";
+  }> = [];
+  let semifinalVotesGivenError: string | null = null;
+
+  if (semifinalVenueType) {
+    const result = await getVotesGivenByCountry(
+      countryIdNum,
+      contest.id,
+      semifinalVenueType
+    );
+    semifinalVotesGiven = result.votes;
+    semifinalVotesGivenError = result.errorMessage;
   }
 
   // Get all participating countries in the semifinal (if applicable)
@@ -260,7 +287,9 @@ export default async function SongPage({
         {(contestError ||
           songError ||
           finalVotesError ||
+          finalVotesGivenError ||
           semifinalVotesError ||
+          semifinalVotesGivenError ||
           finalCountriesError ||
           semifinalCountriesError) && (
           <Card className="p-4 mb-4 bg-red-50">
@@ -269,15 +298,17 @@ export default async function SongPage({
               {contestError ||
                 songError ||
                 finalVotesError ||
+                finalVotesGivenError ||
                 semifinalVotesError ||
+                semifinalVotesGivenError ||
                 finalCountriesError ||
                 semifinalCountriesError}
             </Text>
           </Card>
         )}
 
-        {/* Final Results */}
-        <Box mt="4">
+        {/* Final Results Section */}
+        <section id="final">
           <Heading size="4" mb="3">
             Final Results
             {!qualified && song.venue_type !== "final" && (
@@ -287,7 +318,8 @@ export default async function SongPage({
             )}
           </Heading>
 
-          <Card className="p-6">
+          {/* Final KPIs */}
+          <Card className="p-6" mb="4">
             <Grid columns="4" gap="6">
               <Flex direction="column" align="center" gap="1">
                 <Text size="2" color="gray">
@@ -324,124 +356,193 @@ export default async function SongPage({
               </Flex>
             </Grid>
           </Card>
-        </Box>
-        <Box mt="4">
-          <Card className="p-6">
-            {/* Points Chart for Final */}
-            {(finalJuryPoints !== null ||
-              finalTelevotePoints !== null ||
-              finalTotalPoints !== null) && (
-              <CountryChartContainer
-                juryPoints={finalJuryPoints}
-                televotePoints={finalTelevotePoints}
-                totalPoints={finalTotalPoints}
-                year={year}
-              />
-            )}
-          </Card>
-        </Box>
 
-        {/* Votes from other countries for Final */}
-        {song.venue_type === "final" && (
-          <Box mt="4">
-            <Card className="p-6">
+          {/* Final Points Chart */}
+          {(finalJuryPoints !== null ||
+            finalTelevotePoints !== null ||
+            finalTotalPoints !== null) && (
+            <CountryChartContainer
+              juryPoints={finalJuryPoints}
+              televotePoints={finalTelevotePoints}
+              totalPoints={finalTotalPoints}
+              year={year}
+            />
+          )}
+
+          {/* Votes from other countries for Final */}
+          {song.venue_type === "final" && (
+            <Card className="p-6" mb="4">
               <CountryVotesChartContainer
                 votes={enrichedFinalVotes}
                 title="Votes Received from Other Countries (Final)"
                 height={finalCountries.length * 50 + "px"}
               />
             </Card>
-          </Box>
-        )}
+          )}
 
-        {/* Semifinal Results */}
-        {semifinalSong && (
-          <>
-            <Box mt="4">
-              <Heading size="4" mb="3">
-                {semifinalVenueType === "semifinal1"
-                  ? "Semi-Final 1"
-                  : "Semi-Final 2"}{" "}
-                Results
+          {/* Votes given by this country in Final */}
+          {finalVotesGiven.length > 0 && (
+            <Card className="p-6" mb="4">
+              <Heading size="3" mb="4">
+                How {countryData.name} Voted (Final)
               </Heading>
-
-              <Card className="p-6">
-                <Grid columns="4" gap="6">
-                  <Flex direction="column" align="center" gap="1">
-                    <Text size="2" color="gray">
-                      Position
-                    </Text>
-                    <Heading size="6">{semifinalPosition || "N/A"}</Heading>
-                  </Flex>
-
-                  <Flex direction="column" align="center" gap="1">
-                    <Text size="2" color="gray">
-                      Jury Points
-                    </Text>
-                    <Heading size="6">
-                      {semifinalJuryPoints !== null
-                        ? semifinalJuryPoints
-                        : "N/A"}
-                    </Heading>
-                  </Flex>
-
-                  <Flex direction="column" align="center" gap="1">
-                    <Text size="2" color="gray">
-                      Televote
-                    </Text>
-                    <Heading size="6">
-                      {semifinalTelevotePoints !== null
-                        ? semifinalTelevotePoints
-                        : "N/A"}
-                    </Heading>
-                  </Flex>
-
-                  <Flex direction="column" align="center" gap="1">
-                    <Text size="2" color="gray">
-                      Total Points
-                    </Text>
-                    <Heading size="6">
-                      {semifinalTotalPoints !== null
-                        ? semifinalTotalPoints
-                        : "N/A"}
-                    </Heading>
-                  </Flex>
+              {shouldShowSeparateVotes(year) ? (
+                <Grid columns="2" gap="6">
+                  {/* Jury votes */}
+                  <VotingList
+                    votes={finalVotesGiven.filter(
+                      (vote) => vote.voteType === "jury"
+                    )}
+                    title="Jury Votes"
+                    type="jury"
+                  />
+                  {/* Televotes */}
+                  <VotingList
+                    votes={finalVotesGiven.filter(
+                      (vote) => vote.voteType === "televote"
+                    )}
+                    title="Televotes"
+                    type="televote"
+                  />
                 </Grid>
-              </Card>
-            </Box>
+              ) : (
+                <Grid columns="1" gap="6">
+                  {/* Combined votes for older contests */}
+                  <VotingList
+                    votes={finalVotesGiven}
+                    title="Votes"
+                    type="televote"
+                  />
+                </Grid>
+              )}
+            </Card>
+          )}
+        </section>
+
+        {/* Semifinal Results Section */}
+        {semifinalSong && (
+          <section
+            id={
+              semifinalVenueType === "semifinal1" ? "semifinal1" : "semifinal2"
+            }
+          >
+            <Heading size="4" mb="3">
+              {semifinalVenueType === "semifinal1"
+                ? "Semi-Final 1"
+                : "Semi-Final 2"}{" "}
+              Results
+            </Heading>
+
+            {/* Semifinal KPIs */}
+            <Card className="p-6" mb="4">
+              <Grid columns="4" gap="6">
+                <Flex direction="column" align="center" gap="1">
+                  <Text size="2" color="gray">
+                    Position
+                  </Text>
+                  <Heading size="6">{semifinalPosition || "N/A"}</Heading>
+                </Flex>
+
+                <Flex direction="column" align="center" gap="1">
+                  <Text size="2" color="gray">
+                    Jury Points
+                  </Text>
+                  <Heading size="6">
+                    {semifinalJuryPoints !== null ? semifinalJuryPoints : "N/A"}
+                  </Heading>
+                </Flex>
+
+                <Flex direction="column" align="center" gap="1">
+                  <Text size="2" color="gray">
+                    Televote
+                  </Text>
+                  <Heading size="6">
+                    {semifinalTelevotePoints !== null
+                      ? semifinalTelevotePoints
+                      : "N/A"}
+                  </Heading>
+                </Flex>
+
+                <Flex direction="column" align="center" gap="1">
+                  <Text size="2" color="gray">
+                    Total Points
+                  </Text>
+                  <Heading size="6">
+                    {semifinalTotalPoints !== null
+                      ? semifinalTotalPoints
+                      : "N/A"}
+                  </Heading>
+                </Flex>
+              </Grid>
+            </Card>
 
             {/* Semifinal Points Chart */}
-            <Box mt="4">
-              <Card className="p-6">
-                {/* Points Chart for Semifinal */}
-                {(semifinalJuryPoints !== null ||
-                  semifinalTelevotePoints !== null ||
-                  semifinalTotalPoints !== null) && (
-                  <CountryChartContainer
-                    juryPoints={semifinalJuryPoints}
-                    televotePoints={semifinalTelevotePoints}
-                    totalPoints={semifinalTotalPoints}
-                    year={year}
-                  />
-                )}
-              </Card>
-            </Box>
+            {(semifinalJuryPoints !== null ||
+              semifinalTelevotePoints !== null ||
+              semifinalTotalPoints !== null) && (
+              <CountryChartContainer
+                juryPoints={semifinalJuryPoints}
+                televotePoints={semifinalTelevotePoints}
+                totalPoints={semifinalTotalPoints}
+                year={year}
+              />
+            )}
 
             {/* Votes from other countries for Semifinal */}
-            <Box mt="4">
-              <Card className="p-6">
-                <CountryVotesChartContainer
-                  votes={enrichedSemifinalVotes}
-                  title={`Votes Received from Other Countries (${
-                    semifinalVenueType === "semifinal1"
-                      ? "Semi-Final 1"
-                      : "Semi-Final 2"
-                  })`}
-                  height={semifinalCountries.length * 50 + "px"}
-                />
+            <Card className="p-6" mb="4">
+              <CountryVotesChartContainer
+                votes={enrichedSemifinalVotes}
+                title={`Votes Received from Other Countries (${
+                  semifinalVenueType === "semifinal1"
+                    ? "Semi-Final 1"
+                    : "Semi-Final 2"
+                })`}
+                height={semifinalCountries.length * 50 + "px"}
+              />
+            </Card>
+
+            {/* Votes given by this country in Semifinal */}
+            {semifinalVotesGiven.length > 0 && (
+              <Card className="p-6" mb="4">
+                <Heading size="3" mb="4">
+                  How {countryData.name} Voted (
+                  {semifinalVenueType === "semifinal1"
+                    ? "Semi-Final 1"
+                    : "Semi-Final 2"}
+                  )
+                </Heading>
+                {shouldShowSeparateVotes(year) ? (
+                  <Grid columns="2" gap="6">
+                    {/* Jury votes */}
+                    <VotingList
+                      votes={semifinalVotesGiven.filter(
+                        (vote) => vote.voteType === "jury"
+                      )}
+                      title="Jury Votes"
+                      type="jury"
+                    />
+                    {/* Televotes */}
+                    <VotingList
+                      votes={semifinalVotesGiven.filter(
+                        (vote) => vote.voteType === "televote"
+                      )}
+                      title="Televotes"
+                      type="televote"
+                    />
+                  </Grid>
+                ) : (
+                  <Grid columns="1" gap="6">
+                    {/* Combined votes for older contests */}
+                    <VotingList
+                      votes={semifinalVotesGiven}
+                      title="Votes"
+                      type="televote"
+                    />
+                  </Grid>
+                )}
               </Card>
-            </Box>
-          </>
+            )}
+          </section>
         )}
       </Flex>
     </Container>

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Box } from "@radix-ui/themes";
+import { hasModernVotingSystem } from "@/utils/eurovision";
 
 // Dynamic import for the chart component
 const CountryPointsChart = dynamic(
@@ -39,10 +40,9 @@ export default function CountryChartContainer({
   height,
 }: CountryChartContainerProps) {
   // Determine if this contest uses the modern voting system (jury + televote)
-  // The split system was introduced in 2016
-  const hasModernVotingSystem = year >= 2016;
+  const usesModernVotingSystem = hasModernVotingSystem(year);
 
-  if (hasModernVotingSystem) {
+  if (usesModernVotingSystem) {
     // Modern system (2016+): Use jury and televote split if available
     // Ensure values default to 0 if null for countries that didn't receive any points
     const processedJuryPoints = juryPoints !== null ? juryPoints : 0;
