@@ -89,7 +89,23 @@ type VoteData = {
   points: number;
   venue_id: number;
   jury_or_televote: "jury" | "televote";
-  song_id?: number;
+  song_id: number;
+};
+
+type SongData = {
+  contest_id: number;
+  country_id: number;
+  venue_type: string;
+  artist: string;
+  title: string;
+  points: number;
+};
+
+type CountryVotes = {
+  country_id: number;
+  jury_points: number;
+  televote_points: number;
+  total_points: number;
 };
 
 function parseArguments() {
@@ -179,7 +195,7 @@ async function getOrCreateContest(year: number): Promise<number> {
   return newContest.id;
 }
 
-async function getOrCreateVenue(contestId: number, venueType: string): Promise<number> {
+async function getOrCreateVenue(contestId: number, venueType: string): Promise<{ id: number; type: string }> {
   const dbVenueType = venueType === "sm1" ? "semifinal1" : 
                       venueType === "sm2" ? "semifinal2" : 
                       "final";
@@ -187,7 +203,7 @@ async function getOrCreateVenue(contestId: number, venueType: string): Promise<n
   // Check if venue exists
   const { data: venues, error } = await supabase
     .from("venues")
-    .select("id")
+    .select("id, type")
     .eq("contest_id", contestId)
     .eq("type", dbVenueType)
     .single();
@@ -197,7 +213,7 @@ async function getOrCreateVenue(contestId: number, venueType: string): Promise<n
   }
 
   if (venues) {
-    return venues.id;
+    return { id: venues.id, type: venues.type };
   }
 
   // Create new venue
@@ -207,21 +223,138 @@ async function getOrCreateVenue(contestId: number, venueType: string): Promise<n
       contest_id: contestId,
       type: dbVenueType,
     })
-    .select("id")
+    .select("id, type")
     .single();
 
   if (insertError) {
     throw insertError;
   }
 
-  return newVenue.id;
+  return { id: newVenue.id, type: newVenue.type };
+}
+
+function extractCountryVotesFromCSV(
+  juryFilePath: string,
+  televoteFilePath: string
+): CountryVotes[] {
+  const countryVotesMap = new Map<number, CountryVotes>();
+
+  // Parse jury votes
+  if (fs.existsSync(juryFilePath)) {
+    console.log(`Parsing jury votes from ${juryFilePath}...`);
+    const juryContent = fs.readFileSync(juryFilePath, "utf-8");
+    const juryData = parseCSV(juryContent);
+
+    for (const row of juryData) {
+      const countryName = row.to_country;
+      const countryId = getCountryId(countryName);
+      const juryPoints = parseInt(row.total || "0", 10);
+
+      if (countryId) {
+        const existing = countryVotesMap.get(countryId) || {
+          country_id: countryId,
+          jury_points: 0,
+          televote_points: 0,
+          total_points: 0,
+        };
+        existing.jury_points = juryPoints;
+        countryVotesMap.set(countryId, existing);
+      }
+    }
+  }
+
+  // Parse televote votes
+  if (fs.existsSync(televoteFilePath)) {
+    console.log(`Parsing televote votes from ${televoteFilePath}...`);
+    const televoteContent = fs.readFileSync(televoteFilePath, "utf-8");
+    const televoteData = parseCSV(televoteContent);
+
+    for (const row of televoteData) {
+      const countryName = row.to_country;
+      const countryId = getCountryId(countryName);
+      const televotePoints = parseInt(row.total || "0", 10);
+
+      if (countryId) {
+        const existing = countryVotesMap.get(countryId) || {
+          country_id: countryId,
+          jury_points: 0,
+          televote_points: 0,
+          total_points: 0,
+        };
+        existing.televote_points = televotePoints;
+        countryVotesMap.set(countryId, existing);
+      }
+    }
+  }
+
+  // Calculate total points
+  const result = Array.from(countryVotesMap.values());
+  for (const country of result) {
+    country.total_points = country.jury_points + country.televote_points;
+  }
+
+  return result;
+}
+
+async function cleanExistingSongs(contestId: number, venueType: string): Promise<void> {
+  console.log("Cleaning existing songs for this contest and venue type...");
+  
+  const { error } = await supabase
+    .from("songs")
+    .delete()
+    .eq("contest_id", contestId)
+    .eq("venue_type", venueType);
+
+  if (error) {
+    console.error("Error cleaning existing songs:", error);
+    throw error;
+  }
+
+  console.log("Existing songs cleaned");
+}
+
+async function createSongs(
+  contestId: number,
+  venueType: string,
+  countryVotes: CountryVotes[]
+): Promise<Map<number, number>> {
+  console.log(`Creating ${countryVotes.length} songs for venue ${venueType}...`);
+
+  const songs: SongData[] = countryVotes.map(cv => ({
+    contest_id: contestId,
+    country_id: cv.country_id,
+    venue_type: venueType,
+    artist: "TBD", // Placeholder, can be updated later
+    title: "TBD", // Placeholder, can be updated later
+    points: cv.total_points,
+  }));
+
+  const { data: insertedSongs, error } = await supabase
+    .from("songs")
+    .insert(songs)
+    .select("id, country_id");
+
+  if (error) {
+    console.error("Error creating songs:", error);
+    throw error;
+  }
+
+  // Create mapping from country_id to song_id
+  const countryToSongMap = new Map<number, number>();
+  for (const song of insertedSongs) {
+    countryToSongMap.set(song.country_id, song.id);
+  }
+
+  console.log(`Successfully created ${insertedSongs.length} songs`);
+  return countryToSongMap;
 }
 
 async function importVotesFromCSV(
   filePath: string,
   contestId: number,
   venueId: number,
-  voteType: "jury" | "televote"
+  voteType: "jury" | "televote",
+  countryToSongMap: Map<number, number>
 ): Promise<void> {
   console.log(`Importing ${voteType} votes from ${filePath}...`);
 
@@ -240,7 +373,13 @@ async function importVotesFromCSV(
     const toCountryId = getCountryId(toCountryName);
 
     if (!toCountryId) {
-      console.warn(`Unknown country: ${toCountryName}`);
+      console.warn(`Unknown to_country: ${toCountryName}`);
+      continue;
+    }
+
+    const songId = countryToSongMap.get(toCountryId);
+    if (!songId) {
+      console.warn(`No song found for country: ${toCountryName}`);
       continue;
     }
 
@@ -257,7 +396,7 @@ async function importVotesFromCSV(
 
       const fromCountryId = getCountryId(fromCountryName);
       if (!fromCountryId) {
-        console.warn(`Unknown from country: ${fromCountryName}`);
+        console.warn(`Unknown from_country: ${fromCountryName}`);
         continue;
       }
 
@@ -268,6 +407,7 @@ async function importVotesFromCSV(
         points,
         venue_id: venueId,
         jury_or_televote: voteType,
+        song_id: songId,
       });
     }
   }
@@ -310,55 +450,6 @@ async function cleanExistingVotes(contestId: number, venueId: number): Promise<v
   console.log("Existing votes cleaned");
 }
 
-async function updateVotesWithSongIds(contestId: number, venueId: number): Promise<void> {
-  console.log("Note: Votes imported without song_id links.");
-  console.log("To link votes to songs, run this SQL query manually in Supabase:");
-  
-  // First get the venue type for this venue
-  const { data: venueData, error: venueError } = await supabase
-    .from("venues")
-    .select("type")
-    .eq("id", venueId)
-    .single();
-
-  if (venueError) {
-    console.error("Error getting venue type:", venueError);
-    return;
-  }
-
-  let updateQuery: string;
-
-  if (venueData.type === 'final') {
-    // For finals, votes should only link to final songs
-    updateQuery = `
-UPDATE votes 
-SET song_id = s.id
-FROM songs s
-WHERE votes.contest_id = ${contestId}
-  AND votes.venue_id = ${venueId}
-  AND votes.to_country_id = s.country_id 
-  AND s.contest_id = ${contestId}
-  AND s.venue_type = '${venueData.type}'
-  AND votes.song_id IS NULL;
-    `;
-  } else {
-    // For semifinals, votes can go to any country in the contest (Eurovision rule)
-    // Some countries vote in semifinals but their songs are in the final
-    updateQuery = `
-UPDATE votes 
-SET song_id = s.id
-FROM songs s
-WHERE votes.contest_id = ${contestId}
-  AND votes.venue_id = ${venueId}
-  AND votes.to_country_id = s.country_id 
-  AND s.contest_id = ${contestId}
-  AND votes.song_id IS NULL;
-    `;
-  }
-
-  console.log(updateQuery);
-}
-
 async function main() {
   try {
     const { year, venue } = parseArguments();
@@ -370,24 +461,39 @@ async function main() {
     console.log(`Contest ID: ${contestId}`);
 
     // Get or create venue
-    const venueId = await getOrCreateVenue(contestId, venue);
-    console.log(`Venue ID: ${venueId}`);
-
-    // Clean existing votes for this contest and venue
-    await cleanExistingVotes(contestId, venueId);
+    const venueData = await getOrCreateVenue(contestId, venue);
+    console.log(`Venue ID: ${venueData.id}, Type: ${venueData.type}`);
 
     // Construct file paths
     const juryFile = path.join(process.cwd(), "data", `${year}_${venue}_jury.csv`);
     const publicFile = path.join(process.cwd(), "data", `${year}_${venue}_public.csv`);
 
-    // Import votes
-    await importVotesFromCSV(juryFile, contestId, venueId, "jury");
-    await importVotesFromCSV(publicFile, contestId, venueId, "televote");
+    // Extract countries and their total points from CSV files
+    const countryVotes = extractCountryVotesFromCSV(juryFile, publicFile);
+    console.log(`Found ${countryVotes.length} countries with votes`);
 
-    // Update votes with song IDs
-    await updateVotesWithSongIds(contestId, venueId);
+    if (countryVotes.length === 0) {
+      console.error("No countries found in CSV files. Please check the file format.");
+      process.exit(1);
+    }
+
+    // Clean existing songs and votes for this contest and venue
+    await cleanExistingSongs(contestId, venueData.type);
+    await cleanExistingVotes(contestId, venueData.id);
+
+    // Create songs for each country
+    const countryToSongMap = await createSongs(
+      contestId,
+      venueData.type,
+      countryVotes
+    );
+
+    // Import votes with proper song_id links
+    await importVotesFromCSV(juryFile, contestId, venueData.id, "jury", countryToSongMap);
+    await importVotesFromCSV(publicFile, contestId, venueData.id, "televote", countryToSongMap);
 
     console.log("Import completed successfully!");
+    console.log(`Created ${countryVotes.length} songs and imported all votes with proper links.`);
   } catch (error) {
     console.error("Error during import:", error);
     process.exit(1);
