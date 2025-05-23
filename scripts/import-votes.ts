@@ -326,7 +326,11 @@ async function updateVotesWithSongIds(contestId: number, venueId: number): Promi
     return;
   }
 
-  const updateQuery = `
+  let updateQuery: string;
+
+  if (venueData.type === 'final') {
+    // For finals, votes should only link to final songs
+    updateQuery = `
 UPDATE votes 
 SET song_id = s.id
 FROM songs s
@@ -336,7 +340,21 @@ WHERE votes.contest_id = ${contestId}
   AND s.contest_id = ${contestId}
   AND s.venue_type = '${venueData.type}'
   AND votes.song_id IS NULL;
-  `;
+    `;
+  } else {
+    // For semifinals, votes can go to any country in the contest (Eurovision rule)
+    // Some countries vote in semifinals but their songs are in the final
+    updateQuery = `
+UPDATE votes 
+SET song_id = s.id
+FROM songs s
+WHERE votes.contest_id = ${contestId}
+  AND votes.venue_id = ${venueId}
+  AND votes.to_country_id = s.country_id 
+  AND s.contest_id = ${contestId}
+  AND votes.song_id IS NULL;
+    `;
+  }
 
   console.log(updateQuery);
 }

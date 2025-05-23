@@ -5,8 +5,10 @@ import Link from "next/link";
 import ChartContainer from "@/components/ChartContainer";
 import {
   shouldShowSeparateVotes,
-  isSingleVotingSystem,
   getPrimaryVotingType,
+  getVotingSystemTypeForVenue,
+  hasJuryVotes,
+  hasTeleVotes,
 } from "@/utils/eurovision";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
@@ -60,31 +62,18 @@ export default async function ContestPage({
   const { songs: songsWithPoints, errorMessage: songsError } =
     await getSongsByContestWithPoints(contest.id);
 
-  // Determine if this contest uses separate jury and televote display
-  const showSeparateVotes = shouldShowSeparateVotes(year);
-  const isSingleSystem = isSingleVotingSystem(year);
-  const primaryVotingType = getPrimaryVotingType(year);
-
   // Process songs based on the voting system
   const processedSongs = songsWithPoints.map((song) => {
-    if (isSingleSystem) {
-      // For single voting system, ensure total points default to 0 if null
-      return {
-        ...song,
-        totalPoints: song.totalPoints !== null ? song.totalPoints : 0,
-      };
-    } else {
-      // For multiple voting systems, ensure jury and televote points default to 0 if null
-      return {
-        ...song,
-        juryPoints: song.juryPoints !== null ? song.juryPoints : 0,
-        televotePoints: song.televotePoints !== null ? song.televotePoints : 0,
-        // Recalculate total points to ensure consistency
-        totalPoints:
-          (song.juryPoints !== null ? song.juryPoints : 0) +
-          (song.televotePoints !== null ? song.televotePoints : 0),
-      };
-    }
+    // For legacy compatibility, ensure all points default to 0 if null
+    return {
+      ...song,
+      juryPoints: song.juryPoints !== null ? song.juryPoints : 0,
+      televotePoints: song.televotePoints !== null ? song.televotePoints : 0,
+      // Recalculate total points to ensure consistency
+      totalPoints:
+        (song.juryPoints !== null ? song.juryPoints : 0) +
+        (song.televotePoints !== null ? song.televotePoints : 0),
+    };
   });
 
   // Group songs by venue type
@@ -115,17 +104,23 @@ export default async function ContestPage({
   // Prepare chart data for each venue type
   const chartDataByVenue = venueTypes.reduce((acc, venueType) => {
     const songs = songsByVenue[venueType] || [];
+    
+    // Check venue-specific voting system
+    const venueIsHybrid = getVotingSystemTypeForVenue(year, venueType) === 'hybrid';
+    const venueHasJury = hasJuryVotes(year, venueType);
+    const venueHasTele = hasTeleVotes(year, venueType);
+    const venuePrimaryType = getPrimaryVotingType(year, venueType);
 
-    if (isSingleSystem) {
-      // For single voting systems, put totalPoints into the appropriate array
+    if (!venueIsHybrid && venuePrimaryType) {
+      // For single voting systems (like 2023+ semi-finals), put totalPoints into the appropriate array
       acc[venueType] = {
         countries: songs.map((song) => song.country_name),
         juryVotes:
-          primaryVotingType === "jury"
+          venuePrimaryType === "jury"
             ? songs.map((song) => song.totalPoints)
             : songs.map(() => null),
         televoteVotes:
-          primaryVotingType === "televote"
+          venuePrimaryType === "televote"
             ? songs.map((song) => song.totalPoints)
             : songs.map(() => null),
       };
@@ -133,8 +128,8 @@ export default async function ContestPage({
       // For hybrid systems, use separate jury and televote points
       acc[venueType] = {
         countries: songs.map((song) => song.country_name),
-        juryVotes: songs.map((song) => song.juryPoints),
-        televoteVotes: songs.map((song) => song.televotePoints),
+        juryVotes: venueHasJury ? songs.map((song) => song.juryPoints) : songs.map(() => null),
+        televoteVotes: venueHasTele ? songs.map((song) => song.televotePoints) : songs.map(() => null),
       };
     }
     return acc;
@@ -176,7 +171,13 @@ export default async function ContestPage({
         )}
 
         {/* Display content for each venue type */}
-        {venueTypes.map((venueType) => (
+        {venueTypes.map((venueType) => {
+          // Calculate venue-specific voting system properties
+          const venueShowSeparateVotes = shouldShowSeparateVotes(year, venueType);
+          const venueHasJury = hasJuryVotes(year, venueType);
+          const venueHasTele = hasTeleVotes(year, venueType);
+          
+          return (
           <Box key={venueType} className="mb-8">
             {/* Venue type heading */}
             <Heading size="5" className="mb-4">
@@ -214,25 +215,29 @@ export default async function ContestPage({
                       </Box>
                       <Box>
                         <Flex gap="4" align="center">
-                          {/* Points display - show jury and televote separately for modern system */}
-                          {showSeparateVotes ? (
+                          {/* Points display - venue-specific voting system */}
+                          {venueShowSeparateVotes ? (
                             // Separate voting system - show jury and televote
                             <>
-                              <Flex direction="column" align="end">
-                                <Text size="1" color="gray">
-                                  Jury
-                                </Text>
-                                <Text weight="medium">{song.juryPoints}</Text>
-                              </Flex>
-                              <Flex direction="column" align="end">
-                                <Text size="1" color="gray">
-                                  Televote
-                                </Text>
-                                <Text weight="medium">
-                                  {song.televotePoints}
-                                </Text>
-                              </Flex>
-                              {song.totalPoints !== null && (
+                              {venueHasJury && (
+                                <Flex direction="column" align="end">
+                                  <Text size="1" color="gray">
+                                    Jury
+                                  </Text>
+                                  <Text weight="medium">{song.juryPoints}</Text>
+                                </Flex>
+                              )}
+                              {venueHasTele && (
+                                <Flex direction="column" align="end">
+                                  <Text size="1" color="gray">
+                                    Televote
+                                  </Text>
+                                  <Text weight="medium">
+                                    {song.televotePoints}
+                                  </Text>
+                                </Flex>
+                              )}
+                              {(venueHasJury && venueHasTele) && song.totalPoints !== null && (
                                 <Flex direction="column" align="end">
                                   <Text size="1" color="gray">
                                     Total
@@ -260,7 +265,8 @@ export default async function ContestPage({
               ))}
             </Flex>
           </Box>
-        ))}
+          );
+        })}
       </Flex>
     </Container>
   );

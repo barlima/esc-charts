@@ -119,6 +119,10 @@ The CSV files should have semicolon (`;`) as the separator with the following st
 **Important Note:**
 After importing votes, you need to link them to songs for the application to display points correctly. The script will output an SQL query that you need to run manually in the Supabase SQL editor. This links votes to their corresponding songs based on the receiving country and venue type.
 
+**Eurovision Voting Rules:**
+- **Final votes**: Link only to songs competing in the final
+- **Semifinal votes**: Can link to any song in the contest, because some countries (like "Big Five" countries) vote in semifinals but their songs compete in the final
+
 **Troubleshooting:**
 If the application shows 0 points for all countries after importing votes, it means the votes are not linked to songs. Run the SQL query provided by the import script in Supabase to fix this.
 
