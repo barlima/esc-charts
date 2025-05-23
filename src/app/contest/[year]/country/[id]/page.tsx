@@ -376,6 +376,7 @@ export default async function SongPage({
                 votes={enrichedFinalVotes}
                 title="Votes Received from Other Countries (Final)"
                 height={finalCountries.length * 50 + "px"}
+                year={year}
               />
             </Card>
           )}
@@ -395,6 +396,7 @@ export default async function SongPage({
                     )}
                     title="Jury Votes"
                     type="jury"
+                    year={year}
                   />
                   {/* Televotes */}
                   <VotingList
@@ -403,6 +405,7 @@ export default async function SongPage({
                     )}
                     title="Televotes"
                     type="televote"
+                    year={year}
                   />
                 </Grid>
               ) : (
@@ -412,6 +415,7 @@ export default async function SongPage({
                     votes={finalVotesGiven}
                     title="Votes"
                     type="televote"
+                    year={year}
                   />
                 </Grid>
               )}
@@ -498,6 +502,7 @@ export default async function SongPage({
                     : "Semi-Final 2"
                 })`}
                 height={semifinalCountries.length * 50 + "px"}
+                year={year}
               />
             </Card>
 
@@ -520,6 +525,7 @@ export default async function SongPage({
                       )}
                       title="Jury Votes"
                       type="jury"
+                      year={year}
                     />
                     {/* Televotes */}
                     <VotingList
@@ -528,6 +534,7 @@ export default async function SongPage({
                       )}
                       title="Televotes"
                       type="televote"
+                      year={year}
                     />
                   </Grid>
                 ) : (
@@ -537,6 +544,7 @@ export default async function SongPage({
                       votes={semifinalVotesGiven}
                       title="Votes"
                       type="televote"
+                      year={year}
                     />
                   </Grid>
                 )}

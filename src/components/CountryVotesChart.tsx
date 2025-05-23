@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import * as echarts from "echarts";
 import { CHART_COLORS } from "@/utils/constants";
+import { isSingleVotingSystem, getPrimaryVotingType } from "@/utils/eurovision";
 
 type CountryVotesChartProps = {
   countryVotes: {
@@ -11,11 +12,13 @@ type CountryVotesChartProps = {
     televotePoints: number | null;
   }[];
   height?: string;
+  year?: number;
 };
 
 export default function CountryVotesChart({
   countryVotes,
   height = "1000px",
+  year,
 }: CountryVotesChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -28,9 +31,25 @@ export default function CountryVotesChart({
     const chart = echarts.init(chartRef.current);
 
     // Check if we have both jury and televote data
-    const hasBothTypes =
-      countryVotes.some((v) => v.juryPoints !== null) &&
-      countryVotes.some((v) => v.televotePoints !== null);
+    const hasJuryData = countryVotes.some((v) => v.juryPoints !== null && v.juryPoints > 0);
+    const hasTelevoteData = countryVotes.some((v) => v.televotePoints !== null && v.televotePoints > 0);
+    const hasBothTypes = hasJuryData && hasTelevoteData;
+
+    // For historical contests, determine which voting system was actually used
+    let showAsHybrid = hasBothTypes;
+    let primaryVotingType: 'jury' | 'televote' | null = null;
+
+    if (year && isSingleVotingSystem(year)) {
+      showAsHybrid = false;
+      primaryVotingType = getPrimaryVotingType(year);
+      
+      // For single voting systems, use the data that actually exists
+      if (!hasJuryData && hasTelevoteData) {
+        primaryVotingType = 'televote';
+      } else if (hasJuryData && !hasTelevoteData) {
+        primaryVotingType = 'jury';
+      }
+    }
 
     // Add totalPoints field and sort by it (ascending for y-axis), 
     // then reverse alphabetically as secondary sort
@@ -58,7 +77,7 @@ export default function CountryVotesChart({
     // Fixed bar width of 20px
     const barWidth = 20;
 
-    if (hasBothTypes) {
+    if (showAsHybrid) {
       // Create pyramid chart (bar chart with negative values on left side)
       chart.setOption({
         // Set the global color palette
@@ -158,13 +177,18 @@ export default function CountryVotesChart({
         ],
       });
     } else {
-      // Create simple column chart for available data
-      const availableVotes = sortedData.some((v) => v.juryPoints !== null)
-        ? sortedJuryVotes
-        : sortedTelevoteVotes;
-      const seriesName = sortedData.some((v) => v.juryPoints !== null)
-        ? "Jury"
-        : "Televote";
+      // Create simple column chart for available data (single voting system or only one type has data)
+      let availableVotes = sortedJuryVotes;
+      let seriesName = "Jury";
+      
+      // Determine which data to use based on actual data availability and voting system
+      if (primaryVotingType === 'televote' || (!hasJuryData && hasTelevoteData)) {
+        availableVotes = sortedTelevoteVotes;
+        seriesName = "Televote";
+      } else if (hasJuryData) {
+        availableVotes = sortedJuryVotes;
+        seriesName = "Jury";
+      }
 
       chart.setOption({
         // Set the global color palette
@@ -175,6 +199,7 @@ export default function CountryVotesChart({
           textStyle: {
             color: "#ffffff",
           },
+          show: false, // Hide legend for single voting systems
         },
         grid: {
           left: "5%",
@@ -238,7 +263,7 @@ export default function CountryVotesChart({
     return () => {
       chart.dispose();
     };
-  }, [countryVotes]);
+  }, [countryVotes, year]);
 
   return <div ref={chartRef} style={{ width: "100%", height }} />;
 } 

@@ -28,12 +28,14 @@ type CountryVotesChartContainerProps = {
   }>;
   title: string;
   height?: string;
+  year?: number;
 };
 
 export default function CountryVotesChartContainer({
   votes,
   title,
   height,
+  year,
 }: CountryVotesChartContainerProps) {
   if (!votes || votes.length === 0) {
     return (
@@ -46,7 +48,7 @@ export default function CountryVotesChartContainer({
   return (
     <Box>
       <h3 className="text-lg font-medium mb-4">{title}</h3>
-      <CountryVotesChart countryVotes={votes} height={height} />
+      <CountryVotesChart countryVotes={votes} height={height} year={year} />
     </Box>
   );
 } 

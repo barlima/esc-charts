@@ -3,6 +3,11 @@ import { getContestByYear, getSongsByContestWithPoints } from "@/app/actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ChartContainer from "@/components/ChartContainer";
+import { 
+  shouldShowSeparateVotes, 
+  isSingleVotingSystem, 
+  getPrimaryVotingType 
+} from "@/utils/eurovision";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
 
@@ -55,14 +60,21 @@ export default async function ContestPage({
   const { songs: songsWithPoints, errorMessage: songsError } =
     await getSongsByContestWithPoints(contest.id);
 
-  // Determine if this contest uses the modern voting system (jury + televote)
-  // The split system was introduced in 2016
-  const hasModernVotingSystem = year >= 2016;
+  // Determine if this contest uses separate jury and televote display
+  const showSeparateVotes = shouldShowSeparateVotes(year);
+  const isSingleSystem = isSingleVotingSystem(year);
+  const primaryVotingType = getPrimaryVotingType(year);
 
   // Process songs based on the voting system
   const processedSongs = songsWithPoints.map(song => {
-    if (hasModernVotingSystem) {
-      // For contests from 2016 onwards, ensure jury and televote points default to 0 if null
+    if (isSingleSystem) {
+      // For single voting system, ensure total points default to 0 if null
+      return {
+        ...song,
+        totalPoints: song.totalPoints !== null ? song.totalPoints : 0
+      };
+    } else {
+      // For multiple voting systems, ensure jury and televote points default to 0 if null
       return {
         ...song,
         juryPoints: song.juryPoints !== null ? song.juryPoints : 0,
@@ -71,9 +83,6 @@ export default async function ContestPage({
         totalPoints: (song.juryPoints !== null ? song.juryPoints : 0) + 
                      (song.televotePoints !== null ? song.televotePoints : 0)
       };
-    } else {
-      // For older contests, only use total points
-      return song;
     }
   });
 
@@ -105,15 +114,26 @@ export default async function ContestPage({
   // Prepare chart data for each venue type
   const chartDataByVenue = venueTypes.reduce((acc, venueType) => {
     const songs = songsByVenue[venueType] || [];
-    acc[venueType] = {
-      countries: songs.map((song) => song.country_name),
-      juryVotes: hasModernVotingSystem 
-        ? songs.map((song) => song.juryPoints) 
-        : songs.map(() => null), // Only use jury votes for modern system
-      televoteVotes: hasModernVotingSystem 
-        ? songs.map((song) => song.televotePoints)
-        : songs.map(() => null), // Only use televotes for modern system
-    };
+    
+    if (isSingleSystem) {
+      // For single voting systems, put totalPoints into the appropriate array
+      acc[venueType] = {
+        countries: songs.map((song) => song.country_name),
+        juryVotes: primaryVotingType === 'jury' 
+          ? songs.map((song) => song.totalPoints) 
+          : songs.map(() => null),
+        televoteVotes: primaryVotingType === 'televote' 
+          ? songs.map((song) => song.totalPoints)
+          : songs.map(() => null),
+      };
+    } else {
+      // For hybrid systems, use separate jury and televote points
+      acc[venueType] = {
+        countries: songs.map((song) => song.country_name),
+        juryVotes: songs.map((song) => song.juryPoints),
+        televoteVotes: songs.map((song) => song.televotePoints),
+      };
+    }
     return acc;
   }, {} as Record<VenueType, { countries: string[]; juryVotes: (number | null)[]; televoteVotes: (number | null)[] }>);
 
@@ -192,8 +212,8 @@ export default async function ContestPage({
                       <Box>
                         <Flex gap="4" align="center">
                           {/* Points display - show jury and televote separately for modern system */}
-                          {hasModernVotingSystem ? (
-                            // Modern voting system (2016+) - show jury, televote and total
+                          {showSeparateVotes ? (
+                            // Separate voting system - show jury and televote
                             <>
                               <Flex direction="column" align="end">
                                 <Text size="1" color="gray">
@@ -219,7 +239,7 @@ export default async function ContestPage({
                               )}
                             </>
                           ) : (
-                            // Pre-2016 voting system - only show total points
+                            // Single voting system - only show total points
                             song.totalPoints !== null && (
                               <Flex direction="column" align="end">
                                 <Text size="1" color="gray">

@@ -174,6 +174,7 @@ export default function VotingChart({
           textStyle: {
             color: "#ffffff",
           },
+          show: false, // Hide legend for single voting systems
         },
         grid: {
           left: "5%",

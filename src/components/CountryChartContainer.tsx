@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Box } from "@radix-ui/themes";
+import { Box, Card } from "@radix-ui/themes";
 import { hasModernVotingSystem } from "@/utils/eurovision";
 
 // Dynamic import for the chart component
@@ -50,14 +50,16 @@ export default function CountryChartContainer({
       televotePoints !== null ? televotePoints : 0;
 
     return (
-      <Box mt="6">
-        <CountryPointsChart
-          height={height}
-          juryPoints={processedJuryPoints}
-          televotePoints={processedTelevotePoints}
-          totalPoints={totalPoints}
-        />
-      </Box>
+      <Card className="p-6" mb="4">
+        <Box mt="6">
+          <CountryPointsChart
+            height={height}
+            juryPoints={processedJuryPoints}
+            televotePoints={processedTelevotePoints}
+            totalPoints={totalPoints}
+          />
+        </Box>
+      </Card>
     );
   } else {
     return null; // Don't show any chart if no total points
