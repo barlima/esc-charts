@@ -122,6 +122,25 @@ export default function CountryHistoryChart({
     chart.setOption({
       color: CHART_COLORS,
       backgroundColor: 'transparent',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      visualMap: {
+        show: false,
+        type: 'piecewise',
+        dimension: 1,
+        seriesIndex: 0,
+        pieces: [
+          {
+            min: 1,
+            max: worstFinalPlace + 0.5,
+            color: CHART_COLORS[0]
+          },
+          {
+            min: worstFinalPlace - 0.5,
+            max: maxYValue + 1,
+            color: '#ef476f'
+          }
+        ]
+      } as any,
       grid: {
         left: '3%',
         right: '4%',
@@ -221,7 +240,6 @@ export default function CountryHistoryChart({
         },
       },
       series: [
-        // Single continuous line with different colored points
         {
           name: `${countryName} Eurovision Results`,
           type: 'line',
@@ -230,17 +248,10 @@ export default function CountryHistoryChart({
           symbolSize: 8,
           lineStyle: {
             width: 3,
-            color: CHART_COLORS[0],
           },
           itemStyle: {
             borderColor: '#ffffff',
             borderWidth: 2,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            color: (params: any) => {
-              const year = params.data[0];
-              const dataPoint = allDataPoints.find(p => p.year === year);
-              return dataPoint?.type === 'semifinal' ? '#ef476f' : CHART_COLORS[0];
-            },
           },
           emphasis: {
             itemStyle: {

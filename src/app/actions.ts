@@ -318,9 +318,12 @@ export async function getVotesReceivedByCountry(songId: number): Promise<{
   let errorMessage: string | null = null;
 
   try {
-    const { data, error } = await supabase.rpc("get_votes_received_by_country_optimized", {
-      song_id_param: songId,
-    });
+    const { data, error } = await supabase.rpc(
+      "get_votes_received_by_country_optimized",
+      {
+        song_id_param: songId,
+      }
+    );
 
     if (error) {
       console.error("Supabase error:", error);
@@ -358,16 +361,21 @@ export async function getParticipatingCountries(
   let errorMessage: string | null = null;
 
   try {
-    const { data, error } = await supabase.rpc("get_participating_countries_optimized", {
-      contest_id_param: contestId,
-      venue_type_param: venueType,
-    });
+    const { data, error } = await supabase.rpc(
+      "get_participating_countries_optimized",
+      {
+        contest_id_param: contestId,
+        venue_type_param: venueType,
+      }
+    );
 
     if (error) {
       console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
-      countries = (data as Array<{ country_id: number; country_name: string }>).map((row) => ({
+      countries = (
+        data as Array<{ country_id: number; country_name: string }>
+      ).map((row) => ({
         id: row.country_id,
         name: row.country_name,
       }));
@@ -442,7 +450,7 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
   }>;
   errorMessage: string | null;
 }> {
-  let performances: Array<{
+  const performances: Array<{
     year: number;
     finalPlace: number | null;
     semifinalPlace: number | null;
@@ -454,12 +462,14 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
   try {
     const { data, error } = await supabase
       .from("songs")
-      .select(`
+      .select(
+        `
         final_place,
         venue_type,
         qualified,
         contests!inner(year)
-      `)
+      `
+      )
       .eq("country_id", countryId)
       .not("final_place", "is", null) // Only get performances with valid results
       .order("contests(year)", { ascending: true });
@@ -469,9 +479,18 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
       errorMessage = error.message;
     } else if (data) {
       // Group by year to combine final and semifinal results
-      const yearGroups: { [year: number]: any[] } = {};
-      
-      data.forEach((performance: any) => {
+      const yearGroups: {
+        [year: number]: {
+          final_place: number | null;
+          venue_type: "final" | "semifinal1" | "semifinal2";
+          qualified: boolean | null;
+          contests: {
+            year: number;
+          };
+        }[];
+      } = {};
+
+      data.forEach((performance) => {
         const year = performance.contests.year;
         if (!yearGroups[year]) {
           yearGroups[year] = [];
@@ -481,9 +500,11 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
 
       // Process each year's data
       Object.entries(yearGroups).forEach(([year, yearPerformances]) => {
-        const finalPerformance = yearPerformances.find(p => p.venue_type === 'final');
-        const semifinalPerformance = yearPerformances.find(p => 
-          p.venue_type === 'semifinal1' || p.venue_type === 'semifinal2'
+        const finalPerformance = yearPerformances.find(
+          (p) => p.venue_type === "final"
+        );
+        const semifinalPerformance = yearPerformances.find(
+          (p) => p.venue_type === "semifinal1" || p.venue_type === "semifinal2"
         );
 
         // For years where country qualified to final, show final result
@@ -494,7 +515,7 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
             year: parseInt(year),
             finalPlace: finalPerformance.final_place,
             semifinalPlace: null,
-            venueType: 'final',
+            venueType: "final",
             qualified: true,
           });
         } else if (semifinalPerformance) {
