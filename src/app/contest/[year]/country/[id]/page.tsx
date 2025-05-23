@@ -276,7 +276,15 @@ export default async function SongPage({
         </Box>
 
         {/* Country name heading */}
-        <Heading size="8">{countryData.name}</Heading>
+        <Flex justify="between" align="center">
+          <Heading size="8">{countryData.name}</Heading>
+          <Link
+            href={`/country/${countryIdNum}`}
+            className="text-blue-500 text-sm no-underline hover:underline"
+          >
+            {countryData.name} ESC history
+          </Link>
+        </Flex>
 
         {/* Artist and song subheading */}
         <Heading size="5" as="h2" color="gray">

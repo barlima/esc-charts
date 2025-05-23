@@ -415,12 +415,12 @@ export async function getVotesGivenByCountry(
       console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
-      votes = data.map((row) => ({
-        points: row.points,
-        toCountryName: row.to_country_name,
-        artist: row.artist,
-        title: row.title,
-        voteType: row.jury_or_televote as "jury" | "televote",
+      votes = data.map((vote) => ({
+        points: vote.points,
+        toCountryName: vote.to_country_name,
+        artist: vote.artist,
+        title: vote.title,
+        voteType: vote.jury_or_televote as "jury" | "televote",
       }));
     }
   } catch (err) {
@@ -430,4 +430,93 @@ export async function getVotesGivenByCountry(
   }
 
   return { votes, errorMessage };
+}
+
+export async function getCountryPerformanceHistory(countryId: number): Promise<{
+  performances: Array<{
+    year: number;
+    finalPlace: number | null;
+    semifinalPlace: number | null;
+    venueType: "final" | "semifinal1" | "semifinal2" | null;
+    qualified: boolean | null;
+  }>;
+  errorMessage: string | null;
+}> {
+  let performances: Array<{
+    year: number;
+    finalPlace: number | null;
+    semifinalPlace: number | null;
+    venueType: "final" | "semifinal1" | "semifinal2" | null;
+    qualified: boolean | null;
+  }> = [];
+  let errorMessage: string | null = null;
+
+  try {
+    const { data, error } = await supabase
+      .from("songs")
+      .select(`
+        final_place,
+        venue_type,
+        qualified,
+        contests!inner(year)
+      `)
+      .eq("country_id", countryId)
+      .not("final_place", "is", null) // Only get performances with valid results
+      .order("contests(year)", { ascending: true });
+
+    if (error) {
+      console.error("Supabase error:", error);
+      errorMessage = error.message;
+    } else if (data) {
+      // Group by year to combine final and semifinal results
+      const yearGroups: { [year: number]: any[] } = {};
+      
+      data.forEach((performance: any) => {
+        const year = performance.contests.year;
+        if (!yearGroups[year]) {
+          yearGroups[year] = [];
+        }
+        yearGroups[year].push(performance);
+      });
+
+      // Process each year's data
+      Object.entries(yearGroups).forEach(([year, yearPerformances]) => {
+        const finalPerformance = yearPerformances.find(p => p.venue_type === 'final');
+        const semifinalPerformance = yearPerformances.find(p => 
+          p.venue_type === 'semifinal1' || p.venue_type === 'semifinal2'
+        );
+
+        // For years where country qualified to final, show final result
+        // For years where country only reached semi-final, show semi-final result
+        if (finalPerformance) {
+          // Country qualified to final
+          performances.push({
+            year: parseInt(year),
+            finalPlace: finalPerformance.final_place,
+            semifinalPlace: null,
+            venueType: 'final',
+            qualified: true,
+          });
+        } else if (semifinalPerformance) {
+          // Country only reached semi-final (didn't qualify)
+          performances.push({
+            year: parseInt(year),
+            finalPlace: null,
+            semifinalPlace: semifinalPerformance.final_place,
+            venueType: semifinalPerformance.venue_type,
+            qualified: false,
+          });
+        }
+      });
+
+      // Sort by year
+      performances.sort((a, b) => a.year - b.year);
+    }
+  } catch (err) {
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
+  }
+
+  return { performances, errorMessage };
 }
