@@ -58,6 +58,34 @@ export async function getContests(): Promise<{
   return { contests, errorMessage };
 }
 
+export async function getCountries(): Promise<{
+  countries: Country[];
+  errorMessage: string | null;
+}> {
+  let countries: Country[] = [];
+  let errorMessage: string | null = null;
+
+  try {
+    const { data, error } = await supabase
+      .from("countries")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Supabase error:", error);
+      errorMessage = error.message;
+    } else if (data) {
+      countries = data;
+    }
+  } catch (err) {
+    console.error("Error connecting to Supabase:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
+  }
+
+  return { countries, errorMessage };
+}
+
 export async function getContestByYear(year: number): Promise<{
   contest: Contest | null;
   errorMessage: string | null;
@@ -464,9 +492,12 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
   let errorMessage: string | null = null;
 
   try {
-    const { data, error } = await supabase.rpc("get_country_performance_history", {
-      country_id_param: countryId,
-    });
+    const { data, error } = await supabase.rpc(
+      "get_country_performance_history",
+      {
+        country_id_param: countryId,
+      }
+    );
 
     if (error) {
       console.error("Supabase error:", error);
@@ -476,7 +507,11 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
         year: performance.year,
         finalPlace: performance.final_place,
         semifinalPlace: performance.semifinal_place,
-        venueType: performance.venue_type as "final" | "semifinal1" | "semifinal2" | null,
+        venueType: performance.venue_type as
+          | "final"
+          | "semifinal1"
+          | "semifinal2"
+          | null,
         qualified: performance.qualified,
         artist: performance.artist,
         title: performance.title,
@@ -489,4 +524,164 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
   }
 
   return { performances, errorMessage };
+}
+
+export async function getContestDataCompleteness(contestId: number): Promise<{
+  completenessPercentage: number;
+  songCompleteness: number;
+  voteCompleteness: number;
+  errorMessage: string | null;
+}> {
+  let completenessPercentage = 0;
+  let songCompleteness = 0;
+  let voteCompleteness = 0;
+  let errorMessage: string | null = null;
+
+  try {
+    // Get contest year to determine voting system
+    const { data: contestData, error: contestError } = await supabase
+      .from("contests")
+      .select("year")
+      .eq("id", contestId)
+      .single();
+
+    if (contestError) {
+      console.error("Supabase error:", contestError);
+      errorMessage = contestError.message;
+      return { completenessPercentage: 0, songCompleteness: 0, voteCompleteness: 0, errorMessage };
+    }
+
+    const contestYear = contestData.year;
+
+    // Get all songs for this contest
+    const { data: songsData, error: songsError } = await supabase
+      .from("songs")
+      .select("*")
+      .eq("contest_id", contestId);
+
+    if (songsError) {
+      console.error("Supabase error:", songsError);
+      errorMessage = songsError.message;
+      return { completenessPercentage: 0, songCompleteness: 0, voteCompleteness: 0, errorMessage };
+    }
+
+    // Get all votes for this contest with venue information
+    const { data: votesData, error: votesError } = await supabase
+      .from("votes")
+      .select(
+        `
+        *,
+        venues:venue_id (type)
+      `
+      )
+      .eq("contest_id", contestId);
+
+    if (votesError) {
+      console.error("Supabase error:", votesError);
+      errorMessage = votesError.message;
+      return { completenessPercentage: 0, songCompleteness: 0, voteCompleteness: 0, errorMessage };
+    }
+
+    if (!songsData || !votesData) {
+      return { completenessPercentage: 0, songCompleteness: 0, voteCompleteness: 0, errorMessage: "No data found" };
+    }
+
+    // Calculate song data completeness
+    const totalSongs = songsData.length;
+    const completeSongs = songsData.filter((song) => {
+      const hasBasicData = song.artist && song.title && song.points !== null;
+
+      // Only check for final_place if song is in the final venue
+      // Semifinal songs don't need final_place as that data exists on the final venue song
+      const needsFinalPlace = song.venue_type === "final";
+
+      return hasBasicData && (!needsFinalPlace || song.final_place !== null);
+    }).length;
+
+    songCompleteness = totalSongs > 0 ? completeSongs / totalSongs : 0;
+
+    // Calculate vote data completeness
+    // Group votes by venue type and from_country_id
+    const votesByVenue = votesData.reduce((acc, vote) => {
+      const venueType =
+        (vote.venues as { type: string } | null)?.type || "unknown";
+      const key = `${venueType}_${vote.from_country_id}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(vote);
+      return acc;
+    }, {} as Record<string, typeof votesData>);
+
+    // Count expected vs actual votes per venue
+    const venueTypes = [...new Set(songsData.map((song) => song.venue_type))];
+
+    let expectedVoteRecords = 0;
+    let actualVoteRecords = 0;
+
+    for (const venueType of venueTypes) {
+      // Get countries that actually voted in this venue
+      const votingCountriesInVenue = new Set(
+        votesData
+          .filter(
+            (vote) =>
+              (vote.venues as { type: string } | null)?.type === venueType
+          )
+          .map((vote) => vote.from_country_id)
+      );
+
+      for (const countryId of votingCountriesInVenue) {
+        const key = `${venueType}_${countryId}`;
+        const countryVotes = votesByVenue[key] || [];
+
+        // Determine expected vote records based on venue type and year
+        let expectedForThisCountryVenue = 10; // Default: 10 votes
+
+        // Starting in 2023, semifinals only have televote (10 votes instead of 20)
+        if (
+          contestYear >= 2023 &&
+          (venueType === "semifinal1" || venueType === "semifinal2")
+        ) {
+          expectedForThisCountryVenue = 10; // Only televote votes
+        } else if (contestYear >= 2016) {
+          // Check if this is the "World" country (Rest of World voting)
+          // World can only give televote, not jury votes
+          const isWorldVoting = countryVotes.some(() => {
+            // Check if all votes from this country are televote only
+            return votesData.filter(v => 
+              v.from_country_id === countryId && 
+              (v.venues as { type: string } | null)?.type === venueType
+            ).every(v => v.jury_or_televote === 'televote');
+          });
+          
+          expectedForThisCountryVenue = isWorldVoting ? 10 : 20; // World: 10, Others: 20
+        }
+
+        expectedVoteRecords += expectedForThisCountryVenue;
+        actualVoteRecords += Math.min(
+          countryVotes.length,
+          expectedForThisCountryVenue
+        );
+      }
+    }
+
+    voteCompleteness =
+      expectedVoteRecords > 0 ? actualVoteRecords / expectedVoteRecords : 0;
+
+    // Calculate overall completeness (average of song and vote completeness)
+    completenessPercentage = Math.round(
+      ((songCompleteness + voteCompleteness) / 2) * 100
+    );
+  } catch (err) {
+    console.error("Error calculating contest completeness:", err);
+    errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
+  }
+
+  return { 
+    completenessPercentage, 
+    songCompleteness: Math.round(songCompleteness * 100), 
+    voteCompleteness: Math.round(voteCompleteness * 100), 
+    errorMessage 
+  };
 }

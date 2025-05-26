@@ -22,7 +22,7 @@ import Link from "next/link";
 import CountryChartContainer from "@/components/CountryChartContainer";
 import CountryVotesChartContainer from "@/components/CountryVotesChartContainer";
 import VotingList from "@/components/VotingList";
-import { shouldShowSeparateVotes } from "@/utils/eurovision";
+import { shouldShowSeparateVotes, hasJuryVotes } from "@/utils/eurovision";
 
 type VenueType = "final" | "semifinal1" | "semifinal2";
 
@@ -185,6 +185,7 @@ export default async function SongPage({
   }> = [];
   let semifinalVotesGivenError: string | null = null;
 
+  // For countries that participated in semifinals
   if (semifinalVenueType) {
     const result = await getVotesGivenByCountry(
       countryIdNum,
@@ -193,6 +194,45 @@ export default async function SongPage({
     );
     semifinalVotesGiven = result.votes;
     semifinalVotesGivenError = result.errorMessage;
+  }
+
+  // For Big 5 + Host countries that didn't participate in semifinals but still voted
+  let semifinal1VotesGiven: Array<{
+    points: number;
+    toCountryName: string;
+    artist: string;
+    title: string;
+    voteType: "jury" | "televote";
+  }> = [];
+  let semifinal2VotesGiven: Array<{
+    points: number;
+    toCountryName: string;
+    artist: string;
+    title: string;
+    voteType: "jury" | "televote";
+  }> = [];
+  let semifinal1VotesGivenError: string | null = null;
+  let semifinal2VotesGivenError: string | null = null;
+
+  // If this country didn't participate in semifinals but is in the final, check for semifinal votes
+  if (!semifinalSong && song.venue_type === "final") {
+    // Check for semifinal 1 votes
+    const sf1Result = await getVotesGivenByCountry(
+      countryIdNum,
+      contest.id,
+      "semifinal1"
+    );
+    semifinal1VotesGiven = sf1Result.votes;
+    semifinal1VotesGivenError = sf1Result.errorMessage;
+
+    // Check for semifinal 2 votes
+    const sf2Result = await getVotesGivenByCountry(
+      countryIdNum,
+      contest.id,
+      "semifinal2"
+    );
+    semifinal2VotesGiven = sf2Result.votes;
+    semifinal2VotesGivenError = sf2Result.errorMessage;
   }
 
   // Get all participating countries in the semifinal (if applicable)
@@ -298,6 +338,8 @@ export default async function SongPage({
           finalVotesGivenError ||
           semifinalVotesError ||
           semifinalVotesGivenError ||
+          semifinal1VotesGivenError ||
+          semifinal2VotesGivenError ||
           finalCountriesError ||
           semifinalCountriesError) && (
           <Card className="p-4 mb-4 bg-red-50">
@@ -309,6 +351,8 @@ export default async function SongPage({
                 finalVotesGivenError ||
                 semifinalVotesError ||
                 semifinalVotesGivenError ||
+                semifinal1VotesGivenError ||
+                semifinal2VotesGivenError ||
                 finalCountriesError ||
                 semifinalCountriesError}
             </Text>
@@ -447,7 +491,7 @@ export default async function SongPage({
 
             {/* Semifinal KPIs */}
             <Card className="p-6" mb="4">
-              <Grid columns="4" gap="6">
+              <Grid columns={semifinalVenueType && hasJuryVotes(year, semifinalVenueType) ? "4" : "3"} gap="6">
                 <Flex direction="column" align="center" gap="1">
                   <Text size="2" color="gray">
                     Position
@@ -455,14 +499,16 @@ export default async function SongPage({
                   <Heading size="6">{semifinalPosition || "N/A"}</Heading>
                 </Flex>
 
-                <Flex direction="column" align="center" gap="1">
-                  <Text size="2" color="gray">
-                    Jury Points
-                  </Text>
-                  <Heading size="6">
-                    {semifinalJuryPoints !== null ? semifinalJuryPoints : "N/A"}
-                  </Heading>
-                </Flex>
+                {semifinalVenueType && hasJuryVotes(year, semifinalVenueType) && (
+                  <Flex direction="column" align="center" gap="1">
+                    <Text size="2" color="gray">
+                      Jury Points
+                    </Text>
+                    <Heading size="6">
+                      {semifinalJuryPoints !== null ? semifinalJuryPoints : "N/A"}
+                    </Heading>
+                  </Flex>
+                )}
 
                 <Flex direction="column" align="center" gap="1">
                   <Text size="2" color="gray">
@@ -524,17 +570,19 @@ export default async function SongPage({
                     : "Semi-Final 2"}
                   )
                 </Heading>
-                {shouldShowSeparateVotes(year) ? (
-                  <Grid columns="2" gap="6">
-                    {/* Jury votes */}
-                    <VotingList
-                      votes={semifinalVotesGiven.filter(
-                        (vote) => vote.voteType === "jury"
-                      )}
-                      title="Jury Votes"
-                      type="jury"
-                      year={year}
-                    />
+                {shouldShowSeparateVotes(year, semifinalVenueType || undefined) ? (
+                  <Grid columns={semifinalVenueType && hasJuryVotes(year, semifinalVenueType) ? "2" : "1"} gap="6">
+                    {/* Jury votes - only show if jury votes exist for this venue/year */}
+                    {semifinalVenueType && hasJuryVotes(year, semifinalVenueType) && (
+                      <VotingList
+                        votes={semifinalVotesGiven.filter(
+                          (vote) => vote.voteType === "jury"
+                        )}
+                        title="Jury Votes"
+                        type="jury"
+                        year={year}
+                      />
+                    )}
                     {/* Televotes */}
                     <VotingList
                       votes={semifinalVotesGiven.filter(
@@ -559,6 +607,109 @@ export default async function SongPage({
               </Card>
             )}
           </section>
+        )}
+
+        {/* Semifinal Voting Sections for Big 5 + Host countries */}
+        {!semifinalSong && song.venue_type === "final" && (semifinal1VotesGiven.length > 0 || semifinal2VotesGiven.length > 0) && (
+          <>
+            {/* Semifinal 1 Voting */}
+            {semifinal1VotesGiven.length > 0 && (
+              <section id="semifinal1">
+                <Heading size="4" mb="3">
+                  Semi-Final 1 Voting
+                </Heading>
+
+                <Card className="p-6" mb="4">
+                  <Heading size="3" mb="4">
+                    How {countryData.name} Voted (Semi-Final 1)
+                  </Heading>
+                  {shouldShowSeparateVotes(year, "semifinal1") ? (
+                    <Grid columns={hasJuryVotes(year, "semifinal1") ? "2" : "1"} gap="6">
+                      {/* Jury votes - only show if jury votes exist for this venue/year */}
+                      {hasJuryVotes(year, "semifinal1") && (
+                        <VotingList
+                          votes={semifinal1VotesGiven.filter(
+                            (vote) => vote.voteType === "jury"
+                          )}
+                          title="Jury Votes"
+                          type="jury"
+                          year={year}
+                        />
+                      )}
+                      {/* Televotes */}
+                      <VotingList
+                        votes={semifinal1VotesGiven.filter(
+                          (vote) => vote.voteType === "televote"
+                        )}
+                        title="Televotes"
+                        type="televote"
+                        year={year}
+                      />
+                    </Grid>
+                  ) : (
+                    <Grid columns="1" gap="6">
+                      {/* Combined votes for older contests */}
+                      <VotingList
+                        votes={semifinal1VotesGiven}
+                        title="Votes"
+                        type="televote"
+                        year={year}
+                      />
+                    </Grid>
+                  )}
+                </Card>
+              </section>
+            )}
+
+            {/* Semifinal 2 Voting */}
+            {semifinal2VotesGiven.length > 0 && (
+              <section id="semifinal2">
+                <Heading size="4" mb="3">
+                  Semi-Final 2 Voting
+                </Heading>
+
+                <Card className="p-6" mb="4">
+                  <Heading size="3" mb="4">
+                    How {countryData.name} Voted (Semi-Final 2)
+                  </Heading>
+                  {shouldShowSeparateVotes(year, "semifinal2") ? (
+                    <Grid columns={hasJuryVotes(year, "semifinal2") ? "2" : "1"} gap="6">
+                      {/* Jury votes - only show if jury votes exist for this venue/year */}
+                      {hasJuryVotes(year, "semifinal2") && (
+                        <VotingList
+                          votes={semifinal2VotesGiven.filter(
+                            (vote) => vote.voteType === "jury"
+                          )}
+                          title="Jury Votes"
+                          type="jury"
+                          year={year}
+                        />
+                      )}
+                      {/* Televotes */}
+                      <VotingList
+                        votes={semifinal2VotesGiven.filter(
+                          (vote) => vote.voteType === "televote"
+                        )}
+                        title="Televotes"
+                        type="televote"
+                        year={year}
+                      />
+                    </Grid>
+                  ) : (
+                    <Grid columns="1" gap="6">
+                      {/* Combined votes for older contests */}
+                      <VotingList
+                        votes={semifinal2VotesGiven}
+                        title="Votes"
+                        type="televote"
+                        year={year}
+                      />
+                    </Grid>
+                  )}
+                </Card>
+              </section>
+            )}
+          </>
         )}
       </Flex>
     </Container>
