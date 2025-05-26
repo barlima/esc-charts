@@ -272,6 +272,18 @@ export type Database = {
       }
     }
     Functions: {
+      get_country_performance_history: {
+        Args: { country_id_param: number }
+        Returns: {
+          year: number
+          final_place: number
+          semifinal_place: number
+          venue_type: Database["public"]["Enums"]["venue_type"]
+          qualified: boolean
+          artist: string
+          title: string
+        }[]
+      }
       get_participating_countries_optimized: {
         Args: { contest_id_param: number; venue_type_param: string }
         Returns: {

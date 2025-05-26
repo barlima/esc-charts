@@ -452,7 +452,7 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
   }>;
   errorMessage: string | null;
 }> {
-  const performances: Array<{
+  let performances: Array<{
     year: number;
     finalPlace: number | null;
     semifinalPlace: number | null;
@@ -464,86 +464,23 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
   let errorMessage: string | null = null;
 
   try {
-    const { data, error } = await supabase
-      .from("songs")
-      .select(
-        `
-        final_place,
-        venue_type,
-        qualified,
-        artist,
-        title,
-        contests!inner(year)
-      `
-      )
-      .eq("country_id", countryId)
-      .not("final_place", "is", null) // Only get performances with valid results
-      .order("contests(year)", { ascending: true });
+    const { data, error } = await supabase.rpc("get_country_performance_history", {
+      country_id_param: countryId,
+    });
 
     if (error) {
       console.error("Supabase error:", error);
       errorMessage = error.message;
     } else if (data) {
-      // Group by year to combine final and semifinal results
-      const yearGroups: {
-        [year: number]: {
-          final_place: number | null;
-          venue_type: "final" | "semifinal1" | "semifinal2";
-          qualified: boolean | null;
-          artist: string;
-          title: string;
-          contests: {
-            year: number;
-          };
-        }[];
-      } = {};
-
-      data.forEach((performance) => {
-        const year = performance.contests.year;
-        if (!yearGroups[year]) {
-          yearGroups[year] = [];
-        }
-        yearGroups[year].push(performance);
-      });
-
-      // Process each year's data
-      Object.entries(yearGroups).forEach(([year, yearPerformances]) => {
-        const finalPerformance = yearPerformances.find(
-          (p) => p.venue_type === "final"
-        );
-        const semifinalPerformance = yearPerformances.find(
-          (p) => p.venue_type === "semifinal1" || p.venue_type === "semifinal2"
-        );
-
-        // For years where country qualified to final, show final result
-        // For years where country only reached semi-final, show semi-final result
-        if (finalPerformance) {
-          // Country qualified to final
-          performances.push({
-            year: parseInt(year),
-            finalPlace: finalPerformance.final_place,
-            semifinalPlace: null,
-            venueType: "final",
-            qualified: true,
-            artist: finalPerformance.artist,
-            title: finalPerformance.title,
-          });
-        } else if (semifinalPerformance) {
-          // Country only reached semi-final (didn't qualify)
-          performances.push({
-            year: parseInt(year),
-            finalPlace: null,
-            semifinalPlace: semifinalPerformance.final_place,
-            venueType: semifinalPerformance.venue_type,
-            qualified: false,
-            artist: semifinalPerformance.artist,
-            title: semifinalPerformance.title,
-          });
-        }
-      });
-
-      // Sort by year
-      performances.sort((a, b) => a.year - b.year);
+      performances = data.map((performance) => ({
+        year: performance.year,
+        finalPlace: performance.final_place,
+        semifinalPlace: performance.semifinal_place,
+        venueType: performance.venue_type as "final" | "semifinal1" | "semifinal2" | null,
+        qualified: performance.qualified,
+        artist: performance.artist,
+        title: performance.title,
+      }));
     }
   } catch (err) {
     console.error("Error connecting to Supabase:", err);
