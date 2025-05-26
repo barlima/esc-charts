@@ -28,9 +28,10 @@ export default function VotingChart({
     const chart = echarts.init(chartRef.current);
 
     // Check if we have both jury and televote data
-    const hasBothTypes =
-      juryVotes.some((v) => v !== null) &&
-      televoteVotes.some((v) => v !== null);
+    // Only consider it as having data if there are non-null AND non-zero values
+    const hasJuryData = juryVotes.some((v) => v !== null && v > 0);
+    const hasTelevoteData = televoteVotes.some((v) => v !== null && v > 0);
+    const hasBothTypes = hasJuryData && hasTelevoteData;
 
     // Sort countries and votes by televote + jury points (ascending for y-axis)
     const sortedData = countries
@@ -157,10 +158,10 @@ export default function VotingChart({
       });
     } else {
       // Create simple column chart for available data
-      const availableVotes = juryVotes.some((v) => v !== null)
+      const availableVotes = hasJuryData
         ? sortedJuryVotes
         : sortedTelevoteVotes;
-      const seriesName = juryVotes.some((v) => v !== null)
+      const seriesName = hasJuryData
         ? "Jury"
         : "Televote";
 

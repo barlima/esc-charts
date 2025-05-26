@@ -425,6 +425,7 @@ export async function getVotesGivenByCountry(
   votes: Array<{
     points: number;
     toCountryName: string;
+    toCountryId: number;
     artist: string;
     title: string;
     voteType: "jury" | "televote";
@@ -434,6 +435,7 @@ export async function getVotesGivenByCountry(
   let votes: Array<{
     points: number;
     toCountryName: string;
+    toCountryId: number;
     artist: string;
     title: string;
     voteType: "jury" | "televote";
@@ -441,6 +443,23 @@ export async function getVotesGivenByCountry(
   let errorMessage: string | null = null;
 
   try {
+    // Get all countries for name-to-ID mapping
+    const { data: countriesData, error: countriesError } = await supabase
+      .from("countries")
+      .select("id, name");
+
+    if (countriesError) {
+      console.error("Supabase error:", countriesError);
+      errorMessage = countriesError.message;
+      return { votes, errorMessage };
+    }
+
+    // Create a map for quick country name to ID lookup
+    const countryMap = new Map<string, number>();
+    countriesData?.forEach((country) => {
+      countryMap.set(country.name, country.id);
+    });
+
     const { data, error } = await supabase.rpc("get_votes_given_by_country", {
       country_id_param: countryId,
       contest_id_param: contestId,
@@ -454,6 +473,7 @@ export async function getVotesGivenByCountry(
       votes = data.map((vote) => ({
         points: vote.points,
         toCountryName: vote.to_country_name,
+        toCountryId: countryMap.get(vote.to_country_name) || 0,
         artist: vote.artist,
         title: vote.title,
         voteType: vote.jury_or_televote as "jury" | "televote",

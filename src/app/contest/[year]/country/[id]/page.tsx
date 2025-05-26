@@ -173,6 +173,11 @@ export default async function SongPage({
     const result = await getVotesReceivedByCountry(semifinalSong.id);
     semifinalVotes = result.votes;
     semifinalVotesError = result.errorMessage;
+  } else if (song.venue_type !== "final") {
+    // For countries that didn't qualify, the main song IS the semifinal performance
+    const result = await getVotesReceivedByCountry(song.id);
+    semifinalVotes = result.votes;
+    semifinalVotesError = result.errorMessage;
   }
 
   // Get votes given by this country in the semifinal
@@ -191,6 +196,15 @@ export default async function SongPage({
       countryIdNum,
       contest.id,
       semifinalVenueType
+    );
+    semifinalVotesGiven = result.votes;
+    semifinalVotesGivenError = result.errorMessage;
+  } else if (song.venue_type !== "final") {
+    // For countries that didn't qualify, get their votes from the semifinal they participated in
+    const result = await getVotesGivenByCountry(
+      countryIdNum,
+      contest.id,
+      song.venue_type as VenueType
     );
     semifinalVotesGiven = result.votes;
     semifinalVotesGivenError = result.errorMessage;
@@ -239,10 +253,11 @@ export default async function SongPage({
   let semifinalCountries: Array<{ id: number; name: string }> = [];
   let semifinalCountriesError: string | null = null;
 
-  if (contest && semifinalVenueType) {
+  if (contest && (semifinalVenueType || (song.venue_type !== "final"))) {
+    const venueForCountries = semifinalVenueType || song.venue_type;
     const result = await getParticipatingCountries(
       contest.id,
-      semifinalVenueType
+      venueForCountries as VenueType
     );
     semifinalCountries = result.countries;
     semifinalCountriesError = result.errorMessage;
@@ -271,21 +286,23 @@ export default async function SongPage({
   // Same for semifinal
   const enrichedSemifinalVotes = [...semifinalVotes];
 
-  // Add any missing countries (with zero votes)
-  semifinalCountries.forEach((country) => {
-    const exists = enrichedSemifinalVotes.some(
-      (vote) =>
-        vote.fromCountryName.toLowerCase() === country.name.toLowerCase()
-    );
+  // Add any missing countries (with zero votes) - only if we have semifinal countries
+  if (semifinalCountries.length > 0) {
+    semifinalCountries.forEach((country) => {
+      const exists = enrichedSemifinalVotes.some(
+        (vote) =>
+          vote.fromCountryName.toLowerCase() === country.name.toLowerCase()
+      );
 
-    if (!exists) {
-      enrichedSemifinalVotes.push({
-        fromCountryName: country.name,
-        juryPoints: 0,
-        televotePoints: 0,
-      });
-    }
-  });
+      if (!exists) {
+        enrichedSemifinalVotes.push({
+          fromCountryName: country.name,
+          juryPoints: 0,
+          televotePoints: 0,
+        });
+      }
+    });
+  }
 
   return (
     <Container className="py-16 max-w-3xl mx-auto">
@@ -409,8 +426,8 @@ export default async function SongPage({
             </Grid>
           </Card>
 
-          {/* Final Points Chart */}
-          {(finalJuryPoints !== null ||
+          {/* Final Points Chart - only show if country actually participated in final */}
+          {song.venue_type === "final" && (finalJuryPoints !== null ||
             finalTelevotePoints !== null ||
             finalTotalPoints !== null) && (
             <CountryChartContainer
@@ -418,6 +435,7 @@ export default async function SongPage({
               televotePoints={finalTelevotePoints}
               totalPoints={finalTotalPoints}
               year={year}
+              venueType="final"
             />
           )}
 
@@ -449,6 +467,7 @@ export default async function SongPage({
                     title="Jury Votes"
                     type="jury"
                     year={year}
+                    contestYear={year}
                   />
                   {/* Televotes */}
                   <VotingList
@@ -458,6 +477,7 @@ export default async function SongPage({
                     title="Televotes"
                     type="televote"
                     year={year}
+                    contestYear={year}
                   />
                 </Grid>
               ) : (
@@ -468,6 +488,7 @@ export default async function SongPage({
                     title="Votes"
                     type="televote"
                     year={year}
+                    contestYear={year}
                   />
                 </Grid>
               )}
@@ -476,7 +497,7 @@ export default async function SongPage({
         </section>
 
         {/* Semifinal Results Section */}
-        {semifinalSong && (
+        {(semifinalSong || (song.venue_type !== "final" && !qualified)) && (
           <section
             id={
               semifinalVenueType === "semifinal1" ? "semifinal1" : "semifinal2"
@@ -491,21 +512,21 @@ export default async function SongPage({
 
             {/* Semifinal KPIs */}
             <Card className="p-6" mb="4">
-              <Grid columns={semifinalVenueType && hasJuryVotes(year, semifinalVenueType) ? "4" : "3"} gap="6">
+              <Grid columns={(semifinalVenueType || song.venue_type) && hasJuryVotes(year, (semifinalVenueType || song.venue_type) as VenueType) ? "4" : "3"} gap="6">
                 <Flex direction="column" align="center" gap="1">
                   <Text size="2" color="gray">
                     Position
                   </Text>
-                  <Heading size="6">{semifinalPosition || "N/A"}</Heading>
+                  <Heading size="6">{semifinalPosition || finalPosition || "N/A"}</Heading>
                 </Flex>
 
-                {semifinalVenueType && hasJuryVotes(year, semifinalVenueType) && (
+                {(semifinalVenueType || song.venue_type) && hasJuryVotes(year, (semifinalVenueType || song.venue_type) as VenueType) && (
                   <Flex direction="column" align="center" gap="1">
                     <Text size="2" color="gray">
                       Jury Points
                     </Text>
                     <Heading size="6">
-                      {semifinalJuryPoints !== null ? semifinalJuryPoints : "N/A"}
+                      {(semifinalJuryPoints !== null ? semifinalJuryPoints : finalJuryPoints) !== null ? (semifinalJuryPoints !== null ? semifinalJuryPoints : finalJuryPoints) : "N/A"}
                     </Heading>
                   </Flex>
                 )}
@@ -515,8 +536,8 @@ export default async function SongPage({
                     Televote
                   </Text>
                   <Heading size="6">
-                    {semifinalTelevotePoints !== null
-                      ? semifinalTelevotePoints
+                    {(semifinalTelevotePoints !== null ? semifinalTelevotePoints : finalTelevotePoints) !== null
+                      ? (semifinalTelevotePoints !== null ? semifinalTelevotePoints : finalTelevotePoints)
                       : "N/A"}
                   </Heading>
                 </Flex>
@@ -526,8 +547,8 @@ export default async function SongPage({
                     Total Points
                   </Text>
                   <Heading size="6">
-                    {semifinalTotalPoints !== null
-                      ? semifinalTotalPoints
+                    {(semifinalTotalPoints !== null ? semifinalTotalPoints : finalTotalPoints) !== null
+                      ? (semifinalTotalPoints !== null ? semifinalTotalPoints : finalTotalPoints)
                       : "N/A"}
                   </Heading>
                 </Flex>
@@ -535,14 +556,15 @@ export default async function SongPage({
             </Card>
 
             {/* Semifinal Points Chart */}
-            {(semifinalJuryPoints !== null ||
-              semifinalTelevotePoints !== null ||
-              semifinalTotalPoints !== null) && (
+            {((semifinalJuryPoints !== null ? semifinalJuryPoints : finalJuryPoints) !== null ||
+              (semifinalTelevotePoints !== null ? semifinalTelevotePoints : finalTelevotePoints) !== null ||
+              (semifinalTotalPoints !== null ? semifinalTotalPoints : finalTotalPoints) !== null) && (
               <CountryChartContainer
-                juryPoints={semifinalJuryPoints}
-                televotePoints={semifinalTelevotePoints}
-                totalPoints={semifinalTotalPoints}
+                juryPoints={semifinalJuryPoints !== null ? semifinalJuryPoints : finalJuryPoints}
+                televotePoints={semifinalTelevotePoints !== null ? semifinalTelevotePoints : finalTelevotePoints}
+                totalPoints={semifinalTotalPoints !== null ? semifinalTotalPoints : finalTotalPoints}
                 year={year}
+                venueType={(semifinalVenueType || song.venue_type) as VenueType}
               />
             )}
 
@@ -551,7 +573,7 @@ export default async function SongPage({
               <CountryVotesChartContainer
                 votes={enrichedSemifinalVotes}
                 title={`Votes Received from Other Countries (${
-                  semifinalVenueType === "semifinal1"
+                  (semifinalVenueType || song.venue_type) === "semifinal1"
                     ? "Semi-Final 1"
                     : "Semi-Final 2"
                 })`}
@@ -561,46 +583,49 @@ export default async function SongPage({
             </Card>
 
             {/* Votes given by this country in Semifinal */}
-            {semifinalVotesGiven.length > 0 && (
+            {(semifinalSong ? semifinalVotesGiven : finalVotesGiven).length > 0 && (
               <Card className="p-6" mb="4">
                 <Heading size="3" mb="4">
                   How {countryData.name} Voted (
-                  {semifinalVenueType === "semifinal1"
+                  {(semifinalVenueType || song.venue_type) === "semifinal1"
                     ? "Semi-Final 1"
                     : "Semi-Final 2"}
                   )
                 </Heading>
-                {shouldShowSeparateVotes(year, semifinalVenueType || undefined) ? (
-                  <Grid columns={semifinalVenueType && hasJuryVotes(year, semifinalVenueType) ? "2" : "1"} gap="6">
+                {shouldShowSeparateVotes(year, (semifinalVenueType || song.venue_type) as VenueType) ? (
+                  <Grid columns={(semifinalVenueType || song.venue_type) && hasJuryVotes(year, (semifinalVenueType || song.venue_type) as VenueType) ? "2" : "1"} gap="6">
                     {/* Jury votes - only show if jury votes exist for this venue/year */}
-                    {semifinalVenueType && hasJuryVotes(year, semifinalVenueType) && (
+                    {(semifinalVenueType || song.venue_type) && hasJuryVotes(year, (semifinalVenueType || song.venue_type) as VenueType) && (
                       <VotingList
-                        votes={semifinalVotesGiven.filter(
+                        votes={(semifinalSong ? semifinalVotesGiven : finalVotesGiven).filter(
                           (vote) => vote.voteType === "jury"
                         )}
                         title="Jury Votes"
                         type="jury"
                         year={year}
+                        contestYear={year}
                       />
                     )}
                     {/* Televotes */}
                     <VotingList
-                      votes={semifinalVotesGiven.filter(
+                      votes={(semifinalSong ? semifinalVotesGiven : finalVotesGiven).filter(
                         (vote) => vote.voteType === "televote"
                       )}
                       title="Televotes"
                       type="televote"
                       year={year}
+                      contestYear={year}
                     />
                   </Grid>
                 ) : (
                   <Grid columns="1" gap="6">
                     {/* Combined votes for older contests */}
                     <VotingList
-                      votes={semifinalVotesGiven}
+                      votes={semifinalSong ? semifinalVotesGiven : finalVotesGiven}
                       title="Votes"
                       type="televote"
                       year={year}
+                      contestYear={year}
                     />
                   </Grid>
                 )}
@@ -634,6 +659,7 @@ export default async function SongPage({
                           title="Jury Votes"
                           type="jury"
                           year={year}
+                          contestYear={year}
                         />
                       )}
                       {/* Televotes */}
@@ -644,6 +670,7 @@ export default async function SongPage({
                         title="Televotes"
                         type="televote"
                         year={year}
+                        contestYear={year}
                       />
                     </Grid>
                   ) : (
@@ -654,6 +681,7 @@ export default async function SongPage({
                         title="Votes"
                         type="televote"
                         year={year}
+                        contestYear={year}
                       />
                     </Grid>
                   )}
@@ -683,6 +711,7 @@ export default async function SongPage({
                           title="Jury Votes"
                           type="jury"
                           year={year}
+                          contestYear={year}
                         />
                       )}
                       {/* Televotes */}
@@ -693,6 +722,7 @@ export default async function SongPage({
                         title="Televotes"
                         type="televote"
                         year={year}
+                        contestYear={year}
                       />
                     </Grid>
                   ) : (
@@ -703,6 +733,7 @@ export default async function SongPage({
                         title="Votes"
                         type="televote"
                         year={year}
+                        contestYear={year}
                       />
                     </Grid>
                   )}

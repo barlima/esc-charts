@@ -2,10 +2,12 @@
 
 import { Box, Heading, Flex, Text } from "@radix-ui/themes";
 import { isSingleVotingSystem } from "@/utils/eurovision";
+import Link from "next/link";
 
 type Vote = {
   points: number;
   toCountryName: string;
+  toCountryId?: number;
   artist: string;
   title: string;
 };
@@ -15,12 +17,13 @@ type VotingListProps = {
   title: string;
   type: "jury" | "televote";
   year?: number;
+  contestYear: number;
 };
 
 // Eurovision point system: 12, 10, 8, 7, 6, 5, 4, 3, 2, 1
 const EUROVISION_POINTS = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1];
 
-export default function VotingList({ votes, title, type, year }: VotingListProps) {
+export default function VotingList({ votes, title, type, year, contestYear }: VotingListProps) {
   // Create a map for quick lookup
   const voteMap = new Map<number, Vote>();
   votes.forEach((vote) => {
@@ -58,14 +61,31 @@ export default function VotingList({ votes, title, type, year }: VotingListProps
               </Text>
               
               {vote ? (
-                <Flex direction="column" gap="1" className="flex-1">
-                  <Text size="3" weight="medium">
-                    {vote.toCountryName}
-                  </Text>
-                  <Text size="2" color="gray">
-                    {vote.artist} - {vote.title}
-                  </Text>
-                </Flex>
+                vote.toCountryId ? (
+                  <Link
+                    href={`/contest/${contestYear}/country/${vote.toCountryId}`}
+                    className="flex-1 no-underline text-inherit hover:opacity-80 transition-opacity"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <Flex direction="column" gap="1">
+                      <Text size="3" weight="medium">
+                        {vote.toCountryName}
+                      </Text>
+                      <Text size="2" color="gray">
+                        {vote.artist} - {vote.title}
+                      </Text>
+                    </Flex>
+                  </Link>
+                ) : (
+                  <Flex direction="column" gap="1" className="flex-1">
+                    <Text size="3" weight="medium">
+                      {vote.toCountryName}
+                    </Text>
+                    <Text size="2" color="gray">
+                      {vote.artist} - {vote.title}
+                    </Text>
+                  </Flex>
+                )
               ) : (
                 <Flex direction="column" gap="1" className="flex-1">
                   <Text size="3" color="gray" style={{ fontStyle: "italic" }}>
