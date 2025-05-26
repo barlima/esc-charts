@@ -447,6 +447,8 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
     semifinalPlace: number | null;
     venueType: "final" | "semifinal1" | "semifinal2" | null;
     qualified: boolean | null;
+    artist?: string;
+    title?: string;
   }>;
   errorMessage: string | null;
 }> {
@@ -456,6 +458,8 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
     semifinalPlace: number | null;
     venueType: "final" | "semifinal1" | "semifinal2" | null;
     qualified: boolean | null;
+    artist?: string;
+    title?: string;
   }> = [];
   let errorMessage: string | null = null;
 
@@ -467,6 +471,8 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
         final_place,
         venue_type,
         qualified,
+        artist,
+        title,
         contests!inner(year)
       `
       )
@@ -484,6 +490,8 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
           final_place: number | null;
           venue_type: "final" | "semifinal1" | "semifinal2";
           qualified: boolean | null;
+          artist: string;
+          title: string;
           contests: {
             year: number;
           };
@@ -517,6 +525,8 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
             semifinalPlace: null,
             venueType: "final",
             qualified: true,
+            artist: finalPerformance.artist,
+            title: finalPerformance.title,
           });
         } else if (semifinalPerformance) {
           // Country only reached semi-final (didn't qualify)
@@ -526,6 +536,8 @@ export async function getCountryPerformanceHistory(countryId: number): Promise<{
             semifinalPlace: semifinalPerformance.final_place,
             venueType: semifinalPerformance.venue_type,
             qualified: false,
+            artist: semifinalPerformance.artist,
+            title: semifinalPerformance.title,
           });
         }
       });

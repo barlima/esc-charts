@@ -27,6 +27,8 @@ type CountryHistoryChartContainerProps = {
     semifinalPlace: number | null;
     venueType: "final" | "semifinal1" | "semifinal2" | null;
     qualified: boolean | null;
+    artist?: string;
+    title?: string;
   }>;
   countryName: string;
 };
