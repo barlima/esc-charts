@@ -10,7 +10,8 @@
     "populate-db": "ts-node --project scripts/tsconfig.json scripts/populateDb.ts",
     "populate-db:cleanup": "ts-node --project scripts/tsconfig.json scripts/populateDb.ts --cleanup",
     "update-types": "ts-node scripts/generate-types.ts",
-    "import-votes": "ts-node --project scripts/tsconfig.json scripts/import-votes.ts"
+    "import-votes": "ts-node --project scripts/tsconfig.json scripts/import-votes.ts",
+    "import-songs": "ts-node --project scripts/tsconfig.json scripts/import-songs.ts"
   },
   "dependencies": {
     "@radix-ui/themes": "^3.2.1",

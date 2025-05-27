@@ -289,7 +289,7 @@ export default function CountryHistoryChart({
             }
           } else {
             // Handle mark points
-            if (params.data.value) {
+            if (params.data.value && Array.isArray(params.data.value)) {
               [year, place, dataPoint] = params.data.value;
             }
           }

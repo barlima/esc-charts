@@ -82,7 +82,7 @@ export default async function CountryHistoryPage({
                 Performance Summary
               </Text>
               <Text size="2" color="gray">
-                Total final appearances: {performances.length}
+                Total appearances: {performances.length}
               </Text>
               <Text size="2" color="gray">
                 Years active: {Math.min(...performances.map(p => p.year))} - {Math.max(...performances.map(p => p.year))}

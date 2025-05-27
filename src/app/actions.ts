@@ -2,6 +2,11 @@
 
 import { supabase } from "@/utils/supabase";
 import { Tables } from "@/types/supabase";
+import { 
+  hasJuryVotes, 
+  hasTeleVotes,
+  isSingleVotingSystem
+} from "@/utils/eurovision";
 
 export type Contest = Tables<"contests">;
 export type Song = Tables<"songs"> & {
@@ -585,13 +590,13 @@ export async function getContestDataCompleteness(contestId: number): Promise<{
       return { completenessPercentage: 0, songCompleteness: 0, voteCompleteness: 0, errorMessage };
     }
 
-    // Get all votes for this contest with venue information
+    // Get all votes for this contest with song venue information
     const { data: votesData, error: votesError } = await supabase
       .from("votes")
       .select(
         `
         *,
-        venues:venue_id (type)
+        songs:song_id (venue_type)
       `
       )
       .eq("contest_id", contestId);
@@ -609,13 +614,16 @@ export async function getContestDataCompleteness(contestId: number): Promise<{
     // Calculate song data completeness
     const totalSongs = songsData.length;
     const completeSongs = songsData.filter((song) => {
-      const hasBasicData = song.artist && song.title && song.points !== null;
+      const hasBasicInfo = song.artist && song.title;
 
-      // Only check for final_place if song is in the final venue
-      // Semifinal songs don't need final_place as that data exists on the final venue song
-      const needsFinalPlace = song.venue_type === "final";
-
-      return hasBasicData && (!needsFinalPlace || song.final_place !== null);
+      if (song.venue_type === "final") {
+        // For final performances, we need points and final_place
+        return hasBasicInfo && song.points !== null && song.final_place !== null;
+      } else {
+        // For semifinal performances, we only need basic info (artist, title)
+        // Points are not relevant in semifinals
+        return hasBasicInfo;
+      }
     }).length;
 
     songCompleteness = totalSongs > 0 ? completeSongs / totalSongs : 0;
@@ -624,7 +632,7 @@ export async function getContestDataCompleteness(contestId: number): Promise<{
     // Group votes by venue type and from_country_id
     const votesByVenue = votesData.reduce((acc, vote) => {
       const venueType =
-        (vote.venues as { type: string } | null)?.type || "unknown";
+        (vote.songs as { venue_type: string } | null)?.venue_type || "unknown";
       const key = `${venueType}_${vote.from_country_id}`;
       if (!acc[key]) {
         acc[key] = [];
@@ -639,13 +647,16 @@ export async function getContestDataCompleteness(contestId: number): Promise<{
     let expectedVoteRecords = 0;
     let actualVoteRecords = 0;
 
+    // World country ID (Rest of World voting) - only gives televotes
+    const WORLD_COUNTRY_ID = 489;
+
     for (const venueType of venueTypes) {
       // Get countries that actually voted in this venue
       const votingCountriesInVenue = new Set(
         votesData
           .filter(
             (vote) =>
-              (vote.venues as { type: string } | null)?.type === venueType
+              (vote.songs as { venue_type: string } | null)?.venue_type === venueType
           )
           .map((vote) => vote.from_country_id)
       );
@@ -654,27 +665,36 @@ export async function getContestDataCompleteness(contestId: number): Promise<{
         const key = `${venueType}_${countryId}`;
         const countryVotes = votesByVenue[key] || [];
 
-        // Determine expected vote records based on venue type and year
-        let expectedForThisCountryVenue = 10; // Default: 10 votes
-
-        // Starting in 2023, semifinals only have televote (10 votes instead of 20)
-        if (
-          contestYear >= 2023 &&
-          (venueType === "semifinal1" || venueType === "semifinal2")
-        ) {
-          expectedForThisCountryVenue = 10; // Only televote votes
-        } else if (contestYear >= 2016) {
-          // Check if this is the "World" country (Rest of World voting)
-          // World can only give televote, not jury votes
-          const isWorldVoting = countryVotes.some(() => {
-            // Check if all votes from this country are televote only
-            return votesData.filter(v => 
-              v.from_country_id === countryId && 
-              (v.venues as { type: string } | null)?.type === venueType
-            ).every(v => v.jury_or_televote === 'televote');
-          });
-          
-          expectedForThisCountryVenue = isWorldVoting ? 10 : 20; // World: 10, Others: 20
+        // Determine expected vote records based on venue type, year, and country
+        const venueTypeTyped = venueType as "final" | "semifinal1" | "semifinal2";
+        const isWorldCountry = countryId === WORLD_COUNTRY_ID;
+        
+        // Use Eurovision voting system utilities to determine expected votes
+        const venueHasJury = hasJuryVotes(contestYear, venueTypeTyped);
+        const venueHasTele = hasTeleVotes(contestYear, venueTypeTyped);
+        const isSingleSystem = isSingleVotingSystem(contestYear, venueTypeTyped);
+        
+        // Check if separate votes are shown for this year/venue
+        // Before 2016, even hybrid systems stored combined data
+        const showsSeparateVotes = contestYear >= 2016 && !isSingleSystem;
+        
+        let expectedForThisCountryVenue = 0;
+        
+        if (isSingleSystem || !showsSeparateVotes) {
+          // Single voting system OR hybrid system with combined data (pre-2016)
+          expectedForThisCountryVenue = 10; // Always 10 votes for these cases
+        } else {
+          // Hybrid or mixed systems with separate data (2016+)
+          if (isWorldCountry) {
+            // World country only gives televotes, never jury votes
+            expectedForThisCountryVenue = venueHasTele ? 10 : 0;
+          } else {
+            // Regular countries give both jury and televote (if applicable)
+            let expected = 0;
+            if (venueHasJury) expected += 10; // 10 jury votes
+            if (venueHasTele) expected += 10; // 10 televotes
+            expectedForThisCountryVenue = expected;
+          }
         }
 
         expectedVoteRecords += expectedForThisCountryVenue;
@@ -704,4 +724,136 @@ export async function getContestDataCompleteness(contestId: number): Promise<{
     voteCompleteness: Math.round(voteCompleteness * 100), 
     errorMessage 
   };
+}
+
+export async function getCountryDataCompleteness(countryId: number): Promise<{
+  voteCompleteness: number;
+  songCompleteness: number;
+  errorMessage: string | null;
+}> {
+  let voteCompleteness = 0;
+  let songCompleteness = 0;
+  let errorMessage: string | null = null;
+
+  try {
+    // Get all contests where this country participated (has songs)
+    const { data: songsData, error: songsError } = await supabase
+      .from("songs")
+      .select(`
+        *,
+        contests:contest_id (id, year)
+      `)
+      .eq("country_id", countryId);
+
+    if (songsError) {
+      console.error("Supabase error:", songsError);
+      errorMessage = songsError.message;
+      return { voteCompleteness: 0, songCompleteness: 0, errorMessage };
+    }
+
+    // Get all votes given by this country
+    const { data: votesData, error: votesError } = await supabase
+      .from("votes")
+      .select(`
+        *,
+        songs:song_id (venue_type, contest_id),
+        contests:contest_id (year)
+      `)
+      .eq("from_country_id", countryId);
+
+    if (votesError) {
+      console.error("Supabase error:", votesError);
+      errorMessage = votesError.message;
+      return { voteCompleteness: 0, songCompleteness: 0, errorMessage };
+    }
+
+    if (!songsData || !votesData) {
+      return { voteCompleteness: 0, songCompleteness: 0, errorMessage: "No data found" };
+    }
+
+    // Calculate song data completeness
+    const totalSongs = songsData.length;
+    const completeSongs = songsData.filter((song) => {
+      const hasBasicInfo = song.artist && song.title;
+      
+      if (song.venue_type === "final") {
+        // For final performances, we need points and final_place
+        return hasBasicInfo && song.points !== null && song.final_place !== null;
+      } else {
+        // For semifinal performances, we only need basic info (artist, title)
+        // Points are not relevant in semifinals
+        return hasBasicInfo;
+      }
+    }).length;
+
+    songCompleteness = totalSongs > 0 ? Math.round((completeSongs / totalSongs) * 100) : 0;
+
+    // Calculate vote data completeness
+    // Group votes by contest and venue type
+    const votesByContestVenue = votesData.reduce((acc, vote) => {
+      const contestId = (vote.songs as { contest_id: number } | null)?.contest_id;
+      const venueType = (vote.songs as { venue_type: string } | null)?.venue_type || "unknown";
+      const key = `${contestId}_${venueType}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(vote);
+      return acc;
+    }, {} as Record<string, typeof votesData>);
+
+    // Get unique contest-venue combinations where this country voted
+    const contestVenueCombinations = new Set(
+      votesData.map(vote => {
+        const contestId = (vote.songs as { contest_id: number } | null)?.contest_id;
+        const venueType = (vote.songs as { venue_type: string } | null)?.venue_type;
+        return `${contestId}_${venueType}`;
+      })
+    );
+
+    let expectedVoteRecords = 0;
+    let actualVoteRecords = 0;
+
+    for (const combination of contestVenueCombinations) {
+      const votes = votesByContestVenue[combination] || [];
+      if (votes.length === 0) continue;
+
+      // Get contest year for this combination
+      const contestYear = (votes[0].contests as { year: number } | null)?.year;
+      if (!contestYear) continue;
+
+      const venueType = combination.split('_')[1] as "final" | "semifinal1" | "semifinal2";
+      
+      // Use Eurovision voting system utilities to determine expected votes
+      const venueHasJury = hasJuryVotes(contestYear, venueType);
+      const venueHasTele = hasTeleVotes(contestYear, venueType);
+      const isSingleSystem = isSingleVotingSystem(contestYear, venueType);
+      
+      // Check if separate votes are shown for this year/venue
+      const showsSeparateVotes = contestYear >= 2016 && !isSingleSystem;
+      
+      let expectedForThisVenue = 0;
+      
+      if (isSingleSystem || !showsSeparateVotes) {
+        // Single voting system OR hybrid system with combined data (pre-2016)
+        expectedForThisVenue = 10; // Always 10 votes for these cases
+      } else {
+        // Hybrid or mixed systems with separate data (2016+)
+        let expected = 0;
+        if (venueHasJury) expected += 10; // 10 jury votes
+        if (venueHasTele) expected += 10; // 10 televotes
+        expectedForThisVenue = expected;
+      }
+
+      expectedVoteRecords += expectedForThisVenue;
+      actualVoteRecords += Math.min(votes.length, expectedForThisVenue);
+    }
+
+    voteCompleteness = expectedVoteRecords > 0 ? Math.round((actualVoteRecords / expectedVoteRecords) * 100) : 0;
+
+  } catch (err) {
+    console.error("Error calculating country completeness:", err);
+    errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+  }
+
+  return { voteCompleteness, songCompleteness, errorMessage };
 }

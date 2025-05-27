@@ -11,6 +11,7 @@ import {
   getContests,
   getCountries,
   getContestDataCompleteness,
+  getCountryDataCompleteness,
 } from "./actions";
 import Link from "next/link";
 
@@ -29,6 +30,19 @@ export default async function Home() {
         completenessPercentage,
         songCompleteness,
         voteCompleteness,
+      };
+    })
+  );
+
+  // Fetch completeness data for each country
+  const countriesWithCompleteness = await Promise.all(
+    countries.map(async (country) => {
+      const { voteCompleteness, songCompleteness } =
+        await getCountryDataCompleteness(country.id);
+      return {
+        ...country,
+        voteCompleteness,
+        songCompleteness,
       };
     })
   );
@@ -99,8 +113,8 @@ export default async function Home() {
             {contestsWithCompleteness.map((contest) => {
               const getCompletenessColor = (percentage: number) => {
                 if (percentage === 0) return "#ef4444"; // red
-                if (percentage < 25) return "#ef4444"; // red
-                if (percentage < 100) return "#eab308"; // yellow
+                if (percentage < 50) return "#ef4444"; // red
+                if (percentage < 90) return "#eab308"; // yellow
                 return "#22c55e"; // green
               };
 
@@ -186,21 +200,66 @@ export default async function Home() {
           )}
 
           <Grid columns={{ initial: "1", sm: "2", md: "3" }} gap="2">
-            {countries.map((country) => (
-              <Card
-                key={country.id}
-                asChild
-                className="hover:opacity-80 transition-opacity"
-              >
-                <Link
-                  href={`/country/${country.id}`}
-                  className="block p-3 no-underline text-inherit"
-                  style={{ textDecoration: "none", color: "inherit" }}
+            {countriesWithCompleteness.map((country) => {
+              const getCompletenessColor = (percentage: number) => {
+                if (percentage === 0) return "#ef4444"; // red
+                if (percentage < 50) return "#ef4444"; // red
+                if (percentage < 90) return "#eab308"; // yellow
+                return "#22c55e"; // green
+              };
+
+              return (
+                <Card
+                  key={country.id}
+                  asChild
+                  className="hover:shadow-lg transition-shadow"
                 >
-                  <Text size="3">{country.name}</Text>
-                </Link>
-              </Card>
-            ))}
+                  <Link
+                    href={`/country/${country.id}`}
+                    className="block p-3 no-underline text-inherit"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <Flex direction="column" gap="2">
+                      <Text size="3" weight="medium">
+                        {country.name}
+                      </Text>
+                      <Flex direction="column" gap="1">
+                        <Flex align="center" gap="2">
+                          <Box
+                            style={{
+                              width: "8px",
+                              height: "8px",
+                              borderRadius: "50%",
+                              backgroundColor: getCompletenessColor(
+                                country.songCompleteness
+                              ),
+                            }}
+                          />
+                          <Text size="2" color="gray">
+                            {country.songCompleteness}% songs
+                          </Text>
+                        </Flex>
+                        <Flex align="center" gap="2">
+                          <Box
+                            style={{
+                              width: "8px",
+                              height: "8px",
+                              borderRadius: "50%",
+                              backgroundColor: getCompletenessColor(
+                                country.voteCompleteness
+                              ),
+                            }}
+                          />
+                          <Text size="2" color="gray">
+                            {country.voteCompleteness}% votes
+                          </Text>
+                        </Flex>
+                      </Flex>
+                    </Flex>
+                  </Link>
+                </Card>
+              );
+            })}
           </Grid>
         </Box>
 
