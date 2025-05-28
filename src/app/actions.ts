@@ -857,3 +857,137 @@ export async function getCountryDataCompleteness(countryId: number): Promise<{
 
   return { voteCompleteness, songCompleteness, errorMessage };
 }
+
+export async function getCountryVotingStatsGiven(countryId: number): Promise<{
+  votingStats: Array<{
+    toCountryId: number;
+    toCountryName: string;
+    totalPoints: number;
+  }>;
+  errorMessage: string | null;
+}> {
+  let votingStats: Array<{
+    toCountryId: number;
+    toCountryName: string;
+    totalPoints: number;
+  }> = [];
+  let errorMessage: string | null = null;
+
+  try {
+    const { data, error } = await supabase
+      .from("votes")
+      .select(`
+        points,
+        to_country_id,
+        countries!votes_to_country_id_fkey (
+          id,
+          name
+        )
+      `)
+      .eq("from_country_id", countryId);
+
+    if (error) {
+      console.error("Supabase error:", error);
+      errorMessage = error.message;
+    } else if (data) {
+      // Aggregate points by country
+      const countryPointsMap = new Map<number, { name: string; totalPoints: number }>();
+
+      data.forEach((vote) => {
+        const toCountryId = vote.to_country_id;
+        const points = vote.points;
+        const countryName = (vote.countries as { name: string } | null)?.name || "Unknown";
+
+        if (countryPointsMap.has(toCountryId)) {
+          countryPointsMap.get(toCountryId)!.totalPoints += points;
+        } else {
+          countryPointsMap.set(toCountryId, {
+            name: countryName,
+            totalPoints: points,
+          });
+        }
+      });
+
+      // Convert to array and sort by total points (descending)
+      votingStats = Array.from(countryPointsMap.entries())
+        .map(([toCountryId, { name, totalPoints }]) => ({
+          toCountryId,
+          toCountryName: name,
+          totalPoints,
+        }))
+        .sort((a, b) => b.totalPoints - a.totalPoints);
+    }
+  } catch (err) {
+    console.error("Error connecting to Supabase:", err);
+    errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+  }
+
+  return { votingStats, errorMessage };
+}
+
+export async function getCountryVotingStatsReceived(countryId: number): Promise<{
+  votingStats: Array<{
+    fromCountryId: number;
+    fromCountryName: string;
+    totalPoints: number;
+  }>;
+  errorMessage: string | null;
+}> {
+  let votingStats: Array<{
+    fromCountryId: number;
+    fromCountryName: string;
+    totalPoints: number;
+  }> = [];
+  let errorMessage: string | null = null;
+
+  try {
+    const { data, error } = await supabase
+      .from("votes")
+      .select(`
+        points,
+        from_country_id,
+        countries!votes_from_country_id_fkey (
+          id,
+          name
+        )
+      `)
+      .eq("to_country_id", countryId);
+
+    if (error) {
+      console.error("Supabase error:", error);
+      errorMessage = error.message;
+    } else if (data) {
+      // Aggregate points by country
+      const countryPointsMap = new Map<number, { name: string; totalPoints: number }>();
+
+      data.forEach((vote) => {
+        const fromCountryId = vote.from_country_id;
+        const points = vote.points;
+        const countryName = (vote.countries as { name: string } | null)?.name || "Unknown";
+
+        if (countryPointsMap.has(fromCountryId)) {
+          countryPointsMap.get(fromCountryId)!.totalPoints += points;
+        } else {
+          countryPointsMap.set(fromCountryId, {
+            name: countryName,
+            totalPoints: points,
+          });
+        }
+      });
+
+      // Convert to array and sort by total points (descending)
+      votingStats = Array.from(countryPointsMap.entries())
+        .map(([fromCountryId, { name, totalPoints }]) => ({
+          fromCountryId,
+          fromCountryName: name,
+          totalPoints,
+        }))
+        .sort((a, b) => b.totalPoints - a.totalPoints);
+    }
+  } catch (err) {
+    console.error("Error connecting to Supabase:", err);
+    errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+  }
+
+  return { votingStats, errorMessage };
+}

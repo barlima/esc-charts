@@ -6,11 +6,16 @@ import {
   Flex,
   Card,
 } from "@radix-ui/themes";
-import { getCountryPerformanceHistory } from "@/app/actions";
+import { 
+  getCountryPerformanceHistory,
+  getCountryVotingStatsGiven,
+  getCountryVotingStatsReceived
+} from "@/app/actions";
 import { notFound } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
 import CountryHistoryChartContainer from "@/components/CountryHistoryChartContainer";
+import EuropeVotingMapContainer from "@/components/EuropeVotingMapContainer";
 
 export default async function CountryHistoryPage({
   params,
@@ -37,6 +42,12 @@ export default async function CountryHistoryPage({
 
   // Fetch country performance history
   const { performances, errorMessage } = await getCountryPerformanceHistory(countryIdNum);
+
+  // Fetch voting statistics
+  const { votingStats: votingStatsGiven, errorMessage: votingGivenError } = 
+    await getCountryVotingStatsGiven(countryIdNum);
+  const { votingStats: votingStatsReceived, errorMessage: votingReceivedError } = 
+    await getCountryVotingStatsReceived(countryIdNum);
 
   return (
     <Container className="py-16 max-w-5xl mx-auto">
@@ -122,6 +133,53 @@ export default async function CountryHistoryPage({
                 in our database, or their performance data is not yet available.
               </Text>
             </Flex>
+          </Card>
+        )}
+
+        {/* Voting Statistics - Points Given */}
+        {votingStatsGiven.length > 0 && (
+          <section>
+            <EuropeVotingMapContainer
+              data={votingStatsGiven.map(stat => ({
+                countryId: stat.toCountryId,
+                countryName: stat.toCountryName,
+                totalPoints: stat.totalPoints
+              }))}
+              title={`Points Given by ${countryData.name}`}
+              listTitle="Top 10 Countries - Points Given"
+            />
+          </section>
+        )}
+
+        {/* Voting Statistics - Points Received */}
+        {votingStatsReceived.length > 0 && (
+          <section>
+            <EuropeVotingMapContainer
+              data={votingStatsReceived.map(stat => ({
+                countryId: stat.fromCountryId,
+                countryName: stat.fromCountryName,
+                totalPoints: stat.totalPoints
+              }))}
+              title={`Points Received by ${countryData.name}`}
+              listTitle="Top 10 Countries - Points Received"
+            />
+          </section>
+        )}
+
+        {/* Error messages for voting stats */}
+        {votingGivenError && (
+          <Card className="p-4 mb-4 bg-red-50">
+            <Text size="2" color="red">
+              Error loading voting statistics (given): {votingGivenError}
+            </Text>
+          </Card>
+        )}
+
+        {votingReceivedError && (
+          <Card className="p-4 mb-4 bg-red-50">
+            <Text size="2" color="red">
+              Error loading voting statistics (received): {votingReceivedError}
+            </Text>
           </Card>
         )}
       </Flex>
