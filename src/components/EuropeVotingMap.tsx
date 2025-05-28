@@ -4,6 +4,7 @@ import { useMemo } from "react";
 // @ts-expect-error - react-simple-maps doesn't have types for React 19
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import { Box, Text } from "@radix-ui/themes";
+import Link from "next/link";
 
 type VotingData = {
   countryId: number;
@@ -277,6 +278,7 @@ export default function EuropeVotingMap({
                     },
                     hover: {
                       outline: "none",
+                      cursor: "pointer",
                     },
                     pressed: {
                       outline: "none",
@@ -316,6 +318,120 @@ export default function EuropeVotingMap({
         />
         <Text size="2">High</Text>
       </Box>
+
+      {/* Historical and Special Countries */}
+      {(() => {
+        const historicalCountries = [
+          "Australia",
+          "Yugoslavia",
+          "Serbia & Montenegro",
+          "Serbia and Montenegro",
+          "World",
+        ];
+
+        // Create a complete list with all historical countries, showing 0 points if no data exists
+        const historicalData = historicalCountries.map(countryName => {
+          // Find existing data for this country
+          const existingData = data.find(item => {
+            const itemName = item.countryName.toLowerCase();
+            const historicalLower = countryName.toLowerCase();
+            
+            // Exact match for compound country names
+            if (historicalLower === "serbia and montenegro" || historicalLower === "serbia & montenegro") {
+              return itemName === "serbia and montenegro" || itemName === "serbia & montenegro";
+            }
+            // Regular matching for other countries
+            return itemName === historicalLower;
+          });
+
+          // Return existing data or create a 0-point entry
+          return existingData || {
+            countryId: Math.random(), // Generate a temporary ID for countries with no data
+            countryName: countryName,
+            totalPoints: 0
+          };
+        })
+        // Remove duplicates (in case both "Serbia & Montenegro" and "Serbia and Montenegro" exist)
+        .filter((country, index, array) => {
+          const countryLower = country.countryName.toLowerCase();
+          const isSerbiaMontenegro = countryLower === "serbia & montenegro" || countryLower === "serbia and montenegro";
+          
+          if (isSerbiaMontenegro) {
+            // Keep only the first Serbia and Montenegro entry found
+            return array.findIndex(c => {
+              const cLower = c.countryName.toLowerCase();
+              return cLower === "serbia & montenegro" || cLower === "serbia and montenegro";
+            }) === index;
+          }
+          return true;
+        });
+
+        return (
+          <Box mt="4">
+            <Box style={{ textAlign: "center", marginBottom: "12px" }}>
+              <Text size="3" weight="bold">
+                Historical & Special Participants
+              </Text>
+            </Box>
+            
+            <Box
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: "8px",
+                padding: "12px",
+                backgroundColor: "#1a1a1a",
+                borderRadius: "8px",
+                border: "1px solid #333",
+              }}
+            >
+              {historicalData
+                .sort((a, b) => b.totalPoints - a.totalPoints)
+                .map((country) => (
+                  <Box
+                    key={country.countryId}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "6px 8px",
+                      backgroundColor: "#2a2a2a",
+                      borderRadius: "4px",
+                      border: "1px solid #444",
+                    }}
+                  >
+                    {country.totalPoints > 0 ? (
+                      <Link 
+                        href={`/country/${country.countryId}`}
+                        style={{ 
+                          textDecoration: "none",
+                          cursor: "pointer"
+                        }}
+                      >
+                        <Text 
+                          size="2" 
+                          weight="medium" 
+                          style={{ 
+                            color: "#e0e0e0"
+                          }}
+                        >
+                          {country.countryName}
+                        </Text>
+                      </Link>
+                    ) : (
+                      <Text size="2" weight="medium" style={{ color: "#e0e0e0" }}>
+                        {country.countryName}
+                      </Text>
+                    )}
+                    <Text size="2" weight="bold" style={{ color: "#ffa057" }}>
+                      {country.totalPoints}
+                    </Text>
+                  </Box>
+                ))}
+            </Box>
+          </Box>
+        );
+      })()}
     </Box>
   );
 }

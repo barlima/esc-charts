@@ -1,4 +1,5 @@
 import { Box, Text, Flex, Card } from "@radix-ui/themes";
+import Link from "next/link";
 
 type VotingStatsItem = {
   countryId: number;
@@ -46,9 +47,11 @@ export default function VotingStatsList({
                   {index + 1}
                 </Text>
               </Box>
-              <Text size="2" weight="medium">
-                {item.countryName}
-              </Text>
+              <Link href={`/country/${item.countryId}`} style={{ textDecoration: "none" }}>
+                <Text size="2" weight="medium" style={{ cursor: "pointer" }}>
+                  {item.countryName}
+                </Text>
+              </Link>
             </Flex>
             <Text size="2" weight="bold">
               {item.totalPoints} pts

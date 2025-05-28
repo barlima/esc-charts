@@ -33,13 +33,13 @@ export default function EuropeVotingMapContainer({
           <EuropeVotingMap
             data={data}
             title="Voting Distribution Map"
-            height={800}
+            height={744}
           />
         </Box>
 
-        {/* Top 10 List - takes 2 columns */}
+        {/* Top 15 List - takes 2 columns */}
         <Box style={{ gridColumn: "span 2" }}>
-          <VotingStatsList data={data} title={listTitle} maxItems={10} />
+          <VotingStatsList data={data} title={listTitle} maxItems={15} />
         </Box>
       </Grid>
     </Box>
