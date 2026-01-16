@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "@radix-ui/themes/styles.css";
 
+import { Analytics } from "@vercel/analytics/next";
 import { Theme } from "@radix-ui/themes";
 
 import "./globals.css";
@@ -18,7 +19,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Eurovision Song Contest Charts",
-  description: "Explore voting and performance statistics from Eurovision Song Contests throughout the years",
+  description:
+    "Explore voting and performance statistics from Eurovision Song Contests throughout the years",
 };
 
 export default function RootLayout({
@@ -31,7 +33,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Theme appearance="dark">{children}</Theme>
+        <Theme appearance="dark">
+          {children}
+          <Analytics />
+        </Theme>
       </body>
     </html>
   );
